@@ -1,20 +1,16 @@
-# Pomodoro GUI
+# pomodoro_gui
 
-Flutter desktop companion for the Rust Pomodoro timer. This repository is independent of the Rust repository in the sibling `pomodoro/` folder.
+A new Flutter project.
 
-The Flutter package is in `pomodoro_gui/`. On Windows, start the Rust repository's service-mode executable from this folder:
+## Getting Started
 
-```powershell
-cd pomodoro_gui
-flutter pub get
-flutter run -d windows
-```
+This project is a starting point for a Flutter application.
 
-The app looks for `../../pomodoro/target/debug/locking-pomodoro-timer.exe` relative to the Flutter project directory. Override the executable path when needed:
+A few resources to get you started if this is your first Flutter project:
 
-```powershell
-$env:POMODORO_RUST_EXECUTABLE = "C:\path\to\locking-pomodoro-timer.exe"
-flutter run -d windows
-```
+- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
 
-The Rust process uses its `pomodoro_options.json` file beside the executable. The versioned JSON Lines contract is documented in the Rust repository's README.
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.
