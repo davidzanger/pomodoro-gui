@@ -12,14 +12,20 @@ import 'package:pomodoro_gui/pomodoro_service.dart';
 import 'package:pomodoro_gui/service_protocol.dart';
 
 class FakeTimerController extends TimerController {
-  TimerSnapshot _snapshot = const TimerSnapshot(
-    status: TimerStatus.idle,
-    phase: null,
-    elapsedSeconds: 0,
-    durationSeconds: 0,
-    completedPomodoros: 0,
-  );
+  FakeTimerController({TimerSnapshot? initialSnapshot})
+    : _snapshot =
+          initialSnapshot ??
+          const TimerSnapshot(
+            status: TimerStatus.idle,
+            phase: null,
+            elapsedSeconds: 0,
+            durationSeconds: 0,
+            completedPomodoros: 0,
+          );
+
+  TimerSnapshot _snapshot;
   final List<String> commands = [];
+  final List<int?> commandSeconds = [];
 
   @override
   TimerSnapshot get snapshot => _snapshot;
@@ -36,6 +42,7 @@ class FakeTimerController extends TimerController {
   @override
   Future<void> sendCommand(String type, {int? seconds}) async {
     commands.add(type);
+    commandSeconds.add(seconds);
     if (type == 'start') {
       _snapshot = const TimerSnapshot(
         status: TimerStatus.running,
@@ -44,6 +51,25 @@ class FakeTimerController extends TimerController {
         durationSeconds: 1500,
         completedPomodoros: 0,
       );
+      notifyListeners();
+    } else if (type == 'skip') {
+      _snapshot = switch (_snapshot.phase) {
+        TimerPhase.pomodoro => const TimerSnapshot(
+          status: TimerStatus.running,
+          phase: TimerPhase.additionalPomodoro,
+          elapsedSeconds: 0,
+          durationSeconds: 300,
+          completedPomodoros: 1,
+        ),
+        TimerPhase.additionalPomodoro => const TimerSnapshot(
+          status: TimerStatus.running,
+          phase: TimerPhase.shortBreak,
+          elapsedSeconds: 0,
+          durationSeconds: 300,
+          completedPomodoros: 1,
+        ),
+        _ => _snapshot,
+      };
       notifyListeners();
     }
   }
@@ -62,5 +88,38 @@ void main() {
     expect(controller.commands, ['start']);
     expect(find.text('25:00'), findsOneWidget);
     expect(find.byTooltip('Pause timer'), findsOneWidget);
+  });
+
+  testWidgets('skips to the next phase and displays the upcoming session', (
+    tester,
+  ) async {
+    final controller = FakeTimerController(
+      initialSnapshot: const TimerSnapshot(
+        status: TimerStatus.running,
+        phase: TimerPhase.pomodoro,
+        elapsedSeconds: 300,
+        durationSeconds: 1500,
+        completedPomodoros: 0,
+      ),
+    );
+    await tester.pumpWidget(PomodoroApp(controller: controller));
+
+    expect(find.text('UP NEXT'), findsOneWidget);
+    expect(find.text('Additional focus'), findsOneWidget);
+    await tester.tap(find.byTooltip('Skip to next session'));
+    await tester.pump();
+
+    expect(controller.commands, ['skip']);
+    expect(controller.commandSeconds, [1200]);
+    expect(find.text('Additional focus'), findsOneWidget);
+    expect(find.text('Break'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Skip to next session'));
+    await tester.pump();
+
+    expect(controller.commands, ['skip', 'skip']);
+    expect(controller.commandSeconds, [1200, 300]);
+    expect(find.text('Short break'), findsOneWidget);
+    expect(find.text('Pomodoro'), findsOneWidget);
   });
 }

@@ -316,6 +316,8 @@ class _SessionPanel extends StatelessWidget {
         const SizedBox(height: 32),
         _Controls(snapshot: snapshot, controller: controller),
         const SizedBox(height: 18),
+        _NextSession(label: snapshot.nextSessionLabel),
+        const SizedBox(height: 18),
         Text(
           'Pomodoro ${snapshot.completedPomodoros + 1}',
           style: const TextStyle(
@@ -325,6 +327,49 @@ class _SessionPanel extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _NextSession extends StatelessWidget {
+  const _NextSession({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE5EBE1),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.skip_next, color: Color(0xFF245B50), size: 18),
+          const SizedBox(width: 9),
+          const Text(
+            'UP NEXT',
+            style: TextStyle(
+              color: Color(0xFF74817A),
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF18342F),
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -390,9 +435,16 @@ class _Controls extends StatelessWidget {
           ),
         if (snapshot.phase != null)
           IconButton.outlined(
-            tooltip: 'Cancel session',
-            onPressed: connected ? () => controller.sendCommand('cancel') : null,
-            icon: const Icon(Icons.stop),
+            tooltip: canControl ? 'Skip to next session' : 'Cancel session',
+            onPressed: connected
+                ? () => canControl
+                      ? controller.sendCommand(
+                          'skip',
+                          seconds: snapshot.remaining.inSeconds,
+                        )
+                      : controller.sendCommand('cancel')
+                : null,
+            icon: Icon(canControl ? Icons.skip_next : Icons.stop),
             style: IconButton.styleFrom(
               foregroundColor: const Color(0xFFB7503E),
               fixedSize: const Size(52, 52),

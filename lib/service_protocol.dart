@@ -39,6 +39,13 @@ class TimerSnapshot {
   final int durationSeconds;
   final int completedPomodoros;
 
+  String get nextSessionLabel => switch (phase) {
+    null => 'Pomodoro',
+    TimerPhase.pomodoro => 'Additional focus',
+    TimerPhase.additionalPomodoro => 'Break',
+    TimerPhase.shortBreak || TimerPhase.longBreak => 'Pomodoro',
+  };
+
   Duration get remaining => Duration(
         seconds: (durationSeconds - elapsedSeconds).clamp(0, durationSeconds),
       );
