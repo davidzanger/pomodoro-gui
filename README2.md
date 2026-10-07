@@ -1,20 +1,7 @@
-# Pomodoro GUI
+# Windows Rust integration
 
-Flutter desktop companion for the Rust Pomodoro timer. This repository is independent of the Rust repository in the sibling `pomodoro/` folder.
+The Flutter Windows app loads the sibling Rust project as a native library through the generated Flutter Rust Bridge bindings. `flutter_rust_bridge.yaml` points code generation at `rust/src/api/`, and `hook/build.dart` builds that Rust crate as a Windows Native Asset. The Rust timer logic remains in the sibling `pomodoro` repository, which is a path dependency of the bridge crate.
 
-The Flutter package is in `pomodoro_gui/`. On Windows, start the Rust repository's service-mode executable from this folder:
+No `POMODORO_RUST_EXECUTABLE` environment variable or separate `locking-pomodoro-timer.exe` is needed by the Flutter app. Rust's existing `--service` CLI entry point remains available for compatibility and testing.
 
-```powershell
-cd pomodoro_gui
-flutter pub get
-flutter run -d windows
-```
-
-The app looks for `../../pomodoro/target/debug/locking-pomodoro-timer.exe` relative to the Flutter project directory. Override the executable path when needed:
-
-```powershell
-$env:POMODORO_RUST_EXECUTABLE = "C:\path\to\locking-pomodoro-timer.exe"
-flutter run -d windows
-```
-
-The Rust process uses its `pomodoro_options.json` file beside the executable. The versioned JSON Lines contract is documented in the Rust repository's README.
+For a single file to distribute, use [`tools/package-windows.ps1`](./tools/package-windows.ps1). It embeds the normal Flutter release bundle in a self-extracting executable. The package extracts to `%LOCALAPPDATA%\PomodoroGui` and runs the Flutter app from that directory; it does not merge the Flutter runtime into one native PE executable.

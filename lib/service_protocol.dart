@@ -8,20 +8,20 @@ enum TimerPhase { pomodoro, additionalPomodoro, shortBreak, longBreak }
 
 extension TimerStatusLabel on TimerStatus {
   String get label => switch (this) {
-        TimerStatus.idle => 'Ready',
-        TimerStatus.running => 'In progress',
-        TimerStatus.paused => 'Paused',
-        TimerStatus.waiting => 'Waiting to start',
-      };
+    TimerStatus.idle => 'Ready',
+    TimerStatus.running => 'In progress',
+    TimerStatus.paused => 'Paused',
+    TimerStatus.waiting => 'Waiting to start',
+  };
 }
 
 extension TimerPhaseLabel on TimerPhase {
   String get label => switch (this) {
-        TimerPhase.pomodoro => 'Pomodoro',
-        TimerPhase.additionalPomodoro => 'Additional focus',
-        TimerPhase.shortBreak => 'Short break',
-        TimerPhase.longBreak => 'Long break',
-      };
+    TimerPhase.pomodoro => 'Pomodoro',
+    TimerPhase.additionalPomodoro => 'Additional focus',
+    TimerPhase.shortBreak => 'Short break',
+    TimerPhase.longBreak => 'Long break',
+  };
 }
 
 class TimerSnapshot {
@@ -47,8 +47,8 @@ class TimerSnapshot {
   };
 
   Duration get remaining => Duration(
-        seconds: (durationSeconds - elapsedSeconds).clamp(0, durationSeconds),
-      );
+    seconds: (durationSeconds - elapsedSeconds).clamp(0, durationSeconds),
+  );
 
   double get progress => durationSeconds == 0
       ? 0
@@ -96,10 +96,7 @@ class ServiceEvent {
       case 'stopped':
         return ServiceEvent(type: type);
       case 'state':
-        return ServiceEvent(
-          type: type,
-          state: TimerSnapshot.fromJson(event),
-        );
+        return ServiceEvent(type: type, state: TimerSnapshot.fromJson(event));
       case 'awaitingStart':
       case 'phaseCompleted':
         return ServiceEvent(

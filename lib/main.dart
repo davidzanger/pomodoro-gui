@@ -42,14 +42,15 @@ class _PomodoroAppState extends State<PomodoroApp> {
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFF1F4EF),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF245B50),
-          brightness: Brightness.light,
-        ).copyWith(
-          primary: const Color(0xFF245B50),
-          secondary: const Color(0xFFC2E66B),
-          error: const Color(0xFFB7503E),
-        ),
+        colorScheme:
+            ColorScheme.fromSeed(
+              seedColor: const Color(0xFF245B50),
+              brightness: Brightness.light,
+            ).copyWith(
+              primary: const Color(0xFF245B50),
+              secondary: const Color(0xFFC2E66B),
+              error: const Color(0xFFB7503E),
+            ),
         textTheme: const TextTheme(
           displayLarge: TextStyle(
             fontFamily: 'Georgia',
@@ -225,7 +226,9 @@ class _TimerDial extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final time = snapshot.phase == null ? '--:--' : _formatDuration(snapshot.remaining);
+    final time = snapshot.phase == null
+        ? '--:--'
+        : _formatDuration(snapshot.remaining);
     return Center(
       child: SizedBox.square(
         dimension: diameter,
@@ -260,8 +263,8 @@ class _TimerDial extends StatelessWidget {
                   child: Text(
                     time,
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                          fontSize: diameter * 0.24,
-                        ),
+                      fontSize: diameter * 0.24,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 5),
@@ -292,7 +295,9 @@ class _SessionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = snapshot.phase?.label ?? 'A little focus goes a long way.';
-    final sessionLabel = snapshot.completedPomodoros == 1 ? 'session' : 'sessions';
+    final sessionLabel = snapshot.completedPomodoros == 1
+        ? 'session'
+        : 'sessions';
     final subtitle = snapshot.phase == null
         ? 'Start a session when you are ready.'
         : '${snapshot.completedPomodoros} completed $sessionLabel';
@@ -387,7 +392,8 @@ class _Controls extends StatelessWidget {
     final paused = snapshot.status == TimerStatus.paused;
     final running = snapshot.status == TimerStatus.running;
     final startingBreak = waiting && snapshot.phase != TimerPhase.pomodoro;
-    final canStart = connected && (snapshot.status == TimerStatus.idle || waiting);
+    final canStart =
+        connected && (snapshot.status == TimerStatus.idle || waiting);
     final canControl = connected && (running || paused);
 
     return Wrap(
@@ -410,7 +416,8 @@ class _Controls extends StatelessWidget {
         if (canControl)
           IconButton.filledTonal(
             tooltip: paused ? 'Resume timer' : 'Pause timer',
-            onPressed: () => controller.sendCommand(paused ? 'resume' : 'pause'),
+            onPressed: () =>
+                controller.sendCommand(paused ? 'resume' : 'pause'),
             icon: Icon(paused ? Icons.play_arrow : Icons.pause),
             style: IconButton.styleFrom(
               foregroundColor: const Color(0xFF18342F),

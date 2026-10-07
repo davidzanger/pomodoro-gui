@@ -1,0 +1,15 @@
+[package]
+name = "pomodoro_gui_launcher"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[build-dependencies]
+sha2 = "0.10"
+
+[dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+] }
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }

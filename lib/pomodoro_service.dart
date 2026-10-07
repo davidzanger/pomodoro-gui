@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import 'src/rust/api/simple.dart' as rust_api;
+import 'src/rust/frb_generated.dart';
 import 'service_protocol.dart';
 
 abstract class TimerController extends ChangeNotifier {
@@ -15,13 +16,10 @@ abstract class TimerController extends ChangeNotifier {
 }
 
 class PomodoroService extends TimerController {
-  PomodoroService({String? executablePath})
-      : executablePath = executablePath ?? defaultExecutablePath();
+  PomodoroService();
 
-  final String executablePath;
-  Process? _process;
-  StreamSubscription<String>? _stdoutSubscription;
-  StreamSubscription<String>? _stderrSubscription;
+  rust_api.TimerService? _service;
+  StreamSubscription<String>? _eventSubscription;
   TimerSnapshot _snapshot = const TimerSnapshot(
     status: TimerStatus.idle,
     phase: null,
@@ -32,6 +30,7 @@ class PomodoroService extends TimerController {
   String? _errorMessage;
   bool _isConnected = false;
   bool _disposed = false;
+  bool _connecting = false;
 
   @override
   TimerSnapshot get snapshot => _snapshot;
@@ -42,74 +41,60 @@ class PomodoroService extends TimerController {
   @override
   String? get errorMessage => _errorMessage;
 
-  static String defaultExecutablePath() {
-    final configured = Platform.environment['POMODORO_RUST_EXECUTABLE'];
-    if (configured != null && configured.isNotEmpty) return configured;
-
-    final debugExecutable = File(
-      '${Directory.current.path}${Platform.pathSeparator}..${Platform.pathSeparator}..'
-      '${Platform.pathSeparator}pomodoro${Platform.pathSeparator}target'
-      '${Platform.pathSeparator}debug${Platform.pathSeparator}'
-      'locking-pomodoro-timer.exe',
-    );
-    if (debugExecutable.existsSync()) return debugExecutable.absolute.path;
-
-    final appDirectory = File(Platform.resolvedExecutable).parent;
-    final bundledExecutable = File(
-      '${appDirectory.path}${Platform.pathSeparator}locking-pomodoro-timer.exe',
-    );
-    if (bundledExecutable.existsSync()) return bundledExecutable.path;
-
-    return 'locking-pomodoro-timer.exe';
-  }
-
   @override
   Future<void> connect() async {
-    if (_process != null || _disposed) return;
+    if (_service != null || _connecting || _disposed) return;
     if (!Platform.isWindows) {
       _setError('The Rust service currently supports Windows only.');
       return;
     }
+    _connecting = true;
 
     try {
-      final process = await Process.start(executablePath, ['--service']);
-      _process = process;
-      _stdoutSubscription = process.stdout
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .listen(_handleLine, onError: _handleStreamError);
-      _stderrSubscription = process.stderr
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .listen((line) => debugPrint('Rust service: $line'));
-      unawaited(_watchExit(process));
-    } on ProcessException catch (error) {
-      _setError('Could not start the Rust timer: ${error.message}');
-    } catch (error) {
+      await RustLib.init();
+      if (_disposed) return;
+      final service = await rust_api.createTimerService();
+      if (_disposed) {
+        await service.sendCommand(command: rust_api.TimerCommand.quit);
+        return;
+      }
+      final subscription = service.events().listen(
+        _handleLine,
+        onError: _handleStreamError,
+        onDone: _handleStreamDone,
+      );
+      _service = service;
+      _eventSubscription = subscription;
+    } on Object catch (error) {
       _setError('Could not connect to the Rust timer: $error');
+    } finally {
+      _connecting = false;
     }
   }
 
   @override
   Future<void> sendCommand(String type, {int? seconds}) async {
-    final process = _process;
-    if (process == null || !_isConnected) return;
+    final service = _service;
+    if (service == null || !_isConnected) return;
 
-    final command = <String, Object>{'type': type};
-    if (seconds != null) command['seconds'] = seconds;
-    final request = <String, Object>{
-      'protocolVersion': serviceProtocolVersion,
-      'command': command,
-    };
     try {
-      process.stdin.writeln(jsonEncode(request));
-      await process.stdin.flush();
-    } on IOException catch (error) {
-      _setError('Lost connection to the Rust timer: $error');
+      final command = switch (type) {
+        'start' => rust_api.TimerCommand.start,
+        'pause' => rust_api.TimerCommand.pause,
+        'resume' => rust_api.TimerCommand.resume,
+        'skip' => rust_api.TimerCommand.skip,
+        'cancel' => rust_api.TimerCommand.cancel,
+        'quit' => rust_api.TimerCommand.quit,
+        _ => throw ArgumentError.value(type, 'type', 'Unknown timer command'),
+      };
+      await service.sendCommand(command: command, seconds: seconds);
+    } on Object catch (error) {
+      _setError('Could not send a command to the Rust timer: $error');
     }
   }
 
   void _handleLine(String line) {
+    if (_disposed) return;
     try {
       final event = ServiceEvent.decode(line);
       switch (event.type) {
@@ -137,40 +122,42 @@ class PomodoroService extends TimerController {
   }
 
   void _handleStreamError(Object error) {
+    if (_disposed) return;
     _setError('Could not read the Rust timer response: $error');
   }
 
-  Future<void> _watchExit(Process process) async {
-    final exitCode = await process.exitCode;
-    if (_disposed || !identical(_process, process)) return;
-    _process = null;
+  void _handleStreamDone() {
+    if (_disposed) return;
     _isConnected = false;
-    if (exitCode != 0 && _errorMessage == null) {
-      _errorMessage = 'The Rust timer exited with code $exitCode.';
-    }
+    _errorMessage ??= 'The Rust timer stopped unexpectedly.';
     notifyListeners();
   }
 
   void _setError(String message) {
+    if (_disposed) return;
     _errorMessage = message;
     notifyListeners();
+  }
+
+  Future<void> _stopService(rust_api.TimerService service) async {
+    try {
+      await service.sendCommand(command: rust_api.TimerCommand.quit);
+      await _eventSubscription?.asFuture<void>();
+    } on Object catch (error) {
+      debugPrint('Could not stop Rust timer: $error');
+      await _eventSubscription?.cancel();
+    }
   }
 
   @override
   void dispose() {
     _disposed = true;
-    final process = _process;
-    if (process != null) {
-      process.stdin.writeln(
-        jsonEncode({
-          'protocolVersion': serviceProtocolVersion,
-          'command': {'type': 'quit'},
-        }),
-      );
-      unawaited(process.stdin.close());
+    final service = _service;
+    if (service != null) {
+      unawaited(_stopService(service));
+    } else {
+      unawaited(_eventSubscription?.cancel());
     }
-    unawaited(_stdoutSubscription?.cancel());
-    unawaited(_stderrSubscription?.cancel());
     super.dispose();
   }
 }

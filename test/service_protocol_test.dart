@@ -20,9 +20,8 @@ void main() {
 
   test('rejects an unsupported protocol version', () {
     expect(
-      () => ServiceEvent.decode(
-        '{"protocolVersion":2,"event":{"type":"ready"}}',
-      ),
+      () =>
+          ServiceEvent.decode('{"protocolVersion":2,"event":{"type":"ready"}}'),
       throwsFormatException,
     );
   });
