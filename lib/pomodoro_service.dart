@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import 'app_logging.dart';
 import 'src/rust/api/simple.dart' as rust_api;
 import 'src/rust/frb_generated.dart';
 import 'service_protocol.dart';
@@ -49,6 +50,7 @@ class PomodoroService extends TimerController {
       return;
     }
     _connecting = true;
+    appTalker.info('Connecting to the Rust timer service.');
 
     try {
       await RustLib.init();
@@ -65,6 +67,7 @@ class PomodoroService extends TimerController {
       );
       _service = service;
       _eventSubscription = subscription;
+      appTalker.info('Connected to the Rust timer service.');
     } on Object catch (error) {
       _setError('Could not connect to the Rust timer: $error');
     } finally {
@@ -87,6 +90,11 @@ class PomodoroService extends TimerController {
         'quit' => rust_api.TimerCommand.quit,
         _ => throw ArgumentError.value(type, 'type', 'Unknown timer command'),
       };
+      appTalker.debug(
+        seconds == null
+            ? 'Sending timer command: $type.'
+            : 'Sending timer command: $type ($seconds seconds).',
+      );
       await service.sendCommand(command: command, seconds: seconds);
     } on Object catch (error) {
       _setError('Could not send a command to the Rust timer: $error');
@@ -101,17 +109,31 @@ class PomodoroService extends TimerController {
         case 'ready':
           _isConnected = true;
           _errorMessage = null;
+          appTalker.info('Rust timer is ready.');
           notifyListeners();
         case 'state':
+          final previousSnapshot = _snapshot;
           _snapshot = event.state!;
+          if (previousSnapshot.phase != _snapshot.phase ||
+              previousSnapshot.status != _snapshot.status ||
+              previousSnapshot.completedPomodoros !=
+                  _snapshot.completedPomodoros) {
+            appTalker.info(
+              'Timer state: ${_snapshot.status.name}'
+              '${_snapshot.phase == null ? '' : ' (${_snapshot.phase!.name})'}.',
+            );
+          }
           notifyListeners();
         case 'error':
           _setError(event.message ?? 'The Rust timer returned an error.');
         case 'stopped':
           _isConnected = false;
+          appTalker.warning('Rust timer stopped.');
           notifyListeners();
         case 'awaitingStart':
+          appTalker.info('Waiting for the next timer phase to be started.');
         case 'phaseCompleted':
+          appTalker.info('Timer phase ${event.phase!.name} completed.');
           break;
       }
     } on FormatException catch (error) {
@@ -130,12 +152,14 @@ class PomodoroService extends TimerController {
     if (_disposed) return;
     _isConnected = false;
     _errorMessage ??= 'The Rust timer stopped unexpectedly.';
+    appTalker.warning('Rust timer event stream closed.');
     notifyListeners();
   }
 
   void _setError(String message) {
     if (_disposed) return;
     _errorMessage = message;
+    appTalker.error(message);
     notifyListeners();
   }
 
@@ -144,7 +168,7 @@ class PomodoroService extends TimerController {
       await service.sendCommand(command: rust_api.TimerCommand.quit);
       await _eventSubscription?.asFuture<void>();
     } on Object catch (error) {
-      debugPrint('Could not stop Rust timer: $error');
+      appTalker.handle(error, StackTrace.current, 'Could not stop Rust timer.');
       await _eventSubscription?.cancel();
     }
   }

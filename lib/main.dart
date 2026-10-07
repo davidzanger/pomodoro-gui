@@ -1,11 +1,27 @@
 import 'dart:async';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
+import 'package:talker_flutter/talker_flutter.dart';
 
+import 'app_logging.dart';
 import 'pomodoro_service.dart';
 import 'service_protocol.dart';
 
 void main() {
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    appTalker.handle(
+      details.exception,
+      details.stack,
+      'Flutter framework error',
+    );
+  };
+  PlatformDispatcher.instance.onError = (error, stackTrace) {
+    appTalker.handle(error, stackTrace, 'Uncaught asynchronous error');
+    return true;
+  };
+  appTalker.info('Pomodoro application started.');
   runApp(const PomodoroApp());
 }
 
@@ -95,7 +111,17 @@ class PomodoroHome extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _TopBar(connected: controller.isConnected),
+                      _TopBar(
+                        connected: controller.isConnected,
+                        onShowLogs: () {
+                          appTalker.info('Opened the app log viewer.');
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => TalkerScreen(talker: appTalker),
+                            ),
+                          );
+                        },
+                      ),
                       const SizedBox(height: 28),
                       if (controller.errorMessage != null)
                         _ConnectionError(message: controller.errorMessage!),
@@ -124,9 +150,10 @@ class PomodoroHome extends StatelessWidget {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.connected});
+  const _TopBar({required this.connected, required this.onShowLogs});
 
   final bool connected;
+  final VoidCallback onShowLogs;
 
   @override
   Widget build(BuildContext context) {
@@ -165,6 +192,12 @@ class _TopBar extends StatelessWidget {
             fontWeight: FontWeight.w700,
             letterSpacing: 0.6,
           ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          tooltip: 'View logs',
+          onPressed: onShowLogs,
+          icon: const Icon(Icons.receipt_long),
         ),
       ],
     );
@@ -379,14 +412,124 @@ class _NextSession extends StatelessWidget {
   }
 }
 
-class _Controls extends StatelessWidget {
+class _Controls extends StatefulWidget {
   const _Controls({required this.snapshot, required this.controller});
 
   final TimerSnapshot snapshot;
   final TimerController controller;
 
   @override
+  State<_Controls> createState() => _ControlsState();
+}
+
+class _ControlsState extends State<_Controls> {
+  static const _phaseChangeTimeout = Duration(seconds: 5);
+
+  int _queuedNextSessionSkips = 0;
+  bool _processingNextSessionSkips = false;
+  Completer<void>? _phaseChangeCompleter;
+
+  @override
+  void didUpdateWidget(covariant _Controls oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_phaseChangeCompleter != null &&
+        _hasPhaseAdvanced(oldWidget.snapshot, widget.snapshot)) {
+      _phaseChangeCompleter!.complete();
+    }
+  }
+
+  bool _hasPhaseAdvanced(TimerSnapshot previous, TimerSnapshot next) {
+    return previous.phase != next.phase ||
+        previous.status != next.status ||
+        previous.durationSeconds != next.durationSeconds ||
+        previous.completedPomodoros != next.completedPomodoros ||
+        next.elapsedSeconds < previous.elapsedSeconds;
+  }
+
+  bool _isActive(TimerSnapshot snapshot) =>
+      snapshot.phase != null &&
+      (snapshot.status == TimerStatus.running ||
+          snapshot.status == TimerStatus.paused);
+
+  void _queueSkipToNextSession() {
+    if (!_isActive(widget.snapshot)) return;
+    setState(() => _queuedNextSessionSkips++);
+    unawaited(_processQueuedNextSessionSkips());
+  }
+
+  Future<void> _processQueuedNextSessionSkips() async {
+    if (_processingNextSessionSkips) return;
+    _processingNextSessionSkips = true;
+
+    try {
+      while (mounted && _queuedNextSessionSkips > 0) {
+        final snapshot = widget.snapshot;
+        if (!_isActive(snapshot)) {
+          final discarded = _queuedNextSessionSkips;
+          _queuedNextSessionSkips = 0;
+          appTalker.warning(
+            'Ignored $discarded queued skip-to-next click(s): '
+            'the timer is no longer running.',
+          );
+          break;
+        }
+
+        _queuedNextSessionSkips--;
+        final phaseChange = Completer<void>();
+        _phaseChangeCompleter = phaseChange;
+        try {
+          appTalker.info(
+            'Skipping ${snapshot.phase!.name} with '
+            '${snapshot.remaining.inSeconds} seconds remaining.',
+          );
+          await widget.controller.sendCommand(
+            'skip',
+            seconds: snapshot.remaining.inSeconds,
+          );
+          await phaseChange.future.timeout(_phaseChangeTimeout);
+        } on TimeoutException catch (error, stackTrace) {
+          _queuedNextSessionSkips = 0;
+          appTalker.handle(
+            error,
+            stackTrace,
+            'The timer did not report a phase change after a skip.',
+          );
+          _showSkipError();
+          break;
+        } on Object catch (error, stackTrace) {
+          _queuedNextSessionSkips = 0;
+          appTalker.handle(
+            error,
+            stackTrace,
+            'Could not skip the timer phase.',
+          );
+          _showSkipError();
+          break;
+        } finally {
+          if (identical(_phaseChangeCompleter, phaseChange)) {
+            _phaseChangeCompleter = null;
+          }
+        }
+      }
+    } finally {
+      _processingNextSessionSkips = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _showSkipError() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('The timer did not advance after skipping.'),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final snapshot = widget.snapshot;
+    final controller = widget.controller;
     final connected = controller.isConnected;
     final waiting = snapshot.status == TimerStatus.waiting;
     final paused = snapshot.status == TimerStatus.paused;
@@ -444,12 +587,9 @@ class _Controls extends StatelessWidget {
           IconButton.outlined(
             tooltip: canControl ? 'Skip to next session' : 'Cancel session',
             onPressed: connected
-                ? () => canControl
-                      ? controller.sendCommand(
-                          'skip',
-                          seconds: snapshot.remaining.inSeconds,
-                        )
-                      : controller.sendCommand('cancel')
+                ? canControl
+                      ? _queueSkipToNextSession
+                      : () => controller.sendCommand('cancel')
                 : null,
             icon: Icon(canControl ? Icons.skip_next : Icons.stop),
             style: IconButton.styleFrom(

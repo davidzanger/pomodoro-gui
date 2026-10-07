@@ -26,6 +26,17 @@ flutter run -d windows
 
 The generated FRB API is in `lib/src/rust/`; edit the bridge API in `rust/src/api/`. The Native Assets hook builds the Rust library during the Flutter Windows build. The Rust timer keeps its `pomodoro_options.json` beside the Flutter executable.
 
+## In-app logs
+
+The top-bar **View logs** button opens Talker's in-app log history. The app uses
+[`talker_flutter`](https://pub.dev/packages/talker_flutter) because it provides
+both the logger and a ready-made Flutter log screen; the separate
+[`logger`](https://pub.dev/packages/logger) package is a lightweight console
+logger without that built-in viewer. The history includes Flutter framework
+and uncaught async errors, Flutter-side timer commands and state changes, and
+errors reported by the Rust bridge. Internal Rust logs are not forwarded to
+the Flutter process.
+
 ## Tests
 
 ```powershell

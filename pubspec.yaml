@@ -37,6 +37,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
   flutter_rust_bridge_hooks: 2.13.0
+  talker_flutter: 5.1.20
 
 dev_dependencies:
   flutter_test:
