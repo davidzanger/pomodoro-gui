@@ -16,10 +16,25 @@ abstract class TimerController extends ChangeNotifier {
   Future<void> sendCommand(String type, {int? seconds});
 }
 
-class PomodoroService extends TimerController {
-  PomodoroService();
+abstract interface class TimerServiceConnection {
+  Stream<String> events();
+  Future<void> sendCommand(String type, {int? seconds});
+}
 
-  rust_api.TimerService? _service;
+typedef TimerServiceFactory = Future<TimerServiceConnection> Function();
+
+class PomodoroService extends TimerController {
+  PomodoroService({
+    TimerServiceFactory? serviceFactory,
+    bool Function()? isSupportedPlatform,
+  }) : _serviceFactory = serviceFactory ?? _createTimerService,
+       _isSupportedPlatform =
+           isSupportedPlatform ??
+           (() => serviceFactory != null || Platform.isWindows);
+
+  final TimerServiceFactory _serviceFactory;
+  final bool Function() _isSupportedPlatform;
+  TimerServiceConnection? _service;
   StreamSubscription<String>? _eventSubscription;
   TimerSnapshot _snapshot = const TimerSnapshot(
     status: TimerStatus.idle,
@@ -45,7 +60,7 @@ class PomodoroService extends TimerController {
   @override
   Future<void> connect() async {
     if (_service != null || _connecting || _disposed) return;
-    if (!Platform.isWindows) {
+    if (!_isSupportedPlatform()) {
       _setError('The Rust service currently supports Windows only.');
       return;
     }
@@ -53,11 +68,9 @@ class PomodoroService extends TimerController {
     appTalker.info('Connecting to the Rust timer service.');
 
     try {
-      await RustLib.init();
-      if (_disposed) return;
-      final service = await rust_api.createTimerService();
+      final service = await _serviceFactory();
       if (_disposed) {
-        await service.sendCommand(command: rust_api.TimerCommand.quit);
+        await service.sendCommand('quit');
         return;
       }
       final subscription = service.events().listen(
@@ -82,12 +95,7 @@ class PomodoroService extends TimerController {
 
     try {
       final command = switch (type) {
-        'start' => rust_api.TimerCommand.start,
-        'pause' => rust_api.TimerCommand.pause,
-        'resume' => rust_api.TimerCommand.resume,
-        'skip' => rust_api.TimerCommand.skip,
-        'cancel' => rust_api.TimerCommand.cancel,
-        'quit' => rust_api.TimerCommand.quit,
+        'start' || 'pause' || 'resume' || 'skip' || 'cancel' || 'quit' => type,
         _ => throw ArgumentError.value(type, 'type', 'Unknown timer command'),
       };
       appTalker.debug(
@@ -95,7 +103,7 @@ class PomodoroService extends TimerController {
             ? 'Sending timer command: $type.'
             : 'Sending timer command: $type ($seconds seconds).',
       );
-      await service.sendCommand(command: command, seconds: seconds);
+      await service.sendCommand(command, seconds: seconds);
     } on Object catch (error) {
       _setError('Could not send a command to the Rust timer: $error');
     }
@@ -163,9 +171,9 @@ class PomodoroService extends TimerController {
     notifyListeners();
   }
 
-  Future<void> _stopService(rust_api.TimerService service) async {
+  Future<void> _stopService(TimerServiceConnection service) async {
     try {
-      await service.sendCommand(command: rust_api.TimerCommand.quit);
+      await service.sendCommand('quit');
       await _eventSubscription?.asFuture<void>();
     } on Object catch (error) {
       appTalker.handle(error, StackTrace.current, 'Could not stop Rust timer.');
@@ -183,5 +191,34 @@ class PomodoroService extends TimerController {
       unawaited(_eventSubscription?.cancel());
     }
     super.dispose();
+  }
+}
+
+Future<TimerServiceConnection> _createTimerService() async {
+  await RustLib.init();
+  return RustTimerServiceConnection(await rust_api.createTimerService());
+}
+
+@visibleForTesting
+class RustTimerServiceConnection implements TimerServiceConnection {
+  const RustTimerServiceConnection(this._service);
+
+  final rust_api.TimerService _service;
+
+  @override
+  Stream<String> events() => _service.events();
+
+  @override
+  Future<void> sendCommand(String type, {int? seconds}) {
+    final command = switch (type) {
+      'start' => rust_api.TimerCommand.start,
+      'pause' => rust_api.TimerCommand.pause,
+      'resume' => rust_api.TimerCommand.resume,
+      'skip' => rust_api.TimerCommand.skip,
+      'cancel' => rust_api.TimerCommand.cancel,
+      'quit' => rust_api.TimerCommand.quit,
+      _ => throw ArgumentError.value(type, 'type', 'Unknown timer command'),
+    };
+    return _service.sendCommand(command: command, seconds: seconds);
   }
 }
