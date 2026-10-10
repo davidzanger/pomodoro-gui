@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,10 @@ import 'package:pomodoro_gui/src/rust/frb_generated.dart';
 void main() {
   test('streams timer events from the in-process Rust service', () async {
     await RustLib.init();
+    final settings =
+        jsonDecode(await rust_api.loadTimerSettings()) as Map<String, dynamic>;
+    expect(settings.containsKey('durationPomodoro'), isTrue);
+    expect(settings.containsKey('themeMode'), isFalse);
     final service = await rust_api.createTimerService();
     final events = StreamIterator(service.events());
     var quitSent = false;
@@ -18,6 +23,20 @@ void main() {
       expect(ServiceEvent.decode(events.current).type, 'ready');
       expect(await events.moveNext(), isTrue);
       expect(ServiceEvent.decode(events.current).type, 'state');
+
+      await service.updateSettings(
+        durationPomodoro: 1,
+        additionalDuration: 0,
+        durationShortBreak: 0,
+        durationLongBreak: 0,
+        intervalLongBreak: 4,
+        autoStartBreak: true,
+        autoStartPomodoro: true,
+      );
+      await service.sendCommand(command: rust_api.TimerCommand.start);
+      expect(await events.moveNext(), isTrue);
+      final started = ServiceEvent.decode(events.current);
+      expect(started.state?.durationSeconds, 60);
 
       quitSent = true;
       await service.sendCommand(command: rust_api.TimerCommand.quit);

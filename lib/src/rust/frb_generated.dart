@@ -66,7 +66,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -573491431;
+  int get rustContentHash => 921579752;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -86,9 +86,24 @@ abstract class RustLibApi extends BaseApi {
     PlatformInt64? seconds,
   });
 
+  Future<void> crateApiSimpleTimerServiceUpdateSettings({
+    required TimerService that,
+    required int durationPomodoro,
+    required int additionalDuration,
+    required int durationShortBreak,
+    required int durationLongBreak,
+    required int intervalLongBreak,
+    required bool autoStartBreak,
+    required bool autoStartPomodoro,
+  });
+
   Future<TimerService> crateApiSimpleCreateTimerService();
 
   Future<void> crateApiSimpleInitApp();
+
+  Future<String> crateApiSimpleLoadTimerSettings();
+
+  Future<void> crateApiSimpleSaveTimerSettings({required String settingsJson});
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_TimerService;
@@ -189,6 +204,74 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiSimpleTimerServiceUpdateSettings({
+    required TimerService that,
+    required int durationPomodoro,
+    required int additionalDuration,
+    required int durationShortBreak,
+    required int durationLongBreak,
+    required int intervalLongBreak,
+    required bool autoStartBreak,
+    required bool autoStartPomodoro,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimerService(
+            that,
+            serializer,
+          );
+          sse_encode_i_32(durationPomodoro, serializer);
+          sse_encode_i_32(additionalDuration, serializer);
+          sse_encode_i_32(durationShortBreak, serializer);
+          sse_encode_i_32(durationLongBreak, serializer);
+          sse_encode_i_32(intervalLongBreak, serializer);
+          sse_encode_bool(autoStartBreak, serializer);
+          sse_encode_bool(autoStartPomodoro, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleTimerServiceUpdateSettingsConstMeta,
+        argValues: [
+          that,
+          durationPomodoro,
+          additionalDuration,
+          durationShortBreak,
+          durationLongBreak,
+          intervalLongBreak,
+          autoStartBreak,
+          autoStartPomodoro,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimerServiceUpdateSettingsConstMeta =>
+      const TaskConstMeta(
+        debugName: "TimerService_update_settings",
+        argNames: [
+          "that",
+          "durationPomodoro",
+          "additionalDuration",
+          "durationShortBreak",
+          "durationLongBreak",
+          "intervalLongBreak",
+          "autoStartBreak",
+          "autoStartPomodoro",
+        ],
+      );
+
+  @override
   Future<TimerService> crateApiSimpleCreateTimerService() {
     return handler.executeNormal(
       NormalTask(
@@ -197,7 +280,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 4,
             port: port_,
           );
         },
@@ -225,7 +308,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 5,
             port: port_,
           );
         },
@@ -242,6 +325,64 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSimpleInitAppConstMeta =>
       const TaskConstMeta(debugName: "init_app", argNames: []);
+
+  @override
+  Future<String> crateApiSimpleLoadTimerSettings() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleLoadTimerSettingsConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleLoadTimerSettingsConstMeta =>
+      const TaskConstMeta(debugName: "load_timer_settings", argNames: []);
+
+  @override
+  Future<void> crateApiSimpleSaveTimerSettings({required String settingsJson}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(settingsJson, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleSaveTimerSettingsConstMeta,
+        argValues: [settingsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleSaveTimerSettingsConstMeta =>
+      const TaskConstMeta(
+        debugName: "save_timer_settings",
+        argNames: ["settingsJson"],
+      );
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_TimerService => wire
@@ -294,6 +435,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   String dco_decode_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as String;
+  }
+
+  @protected
+  bool dco_decode_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as bool;
   }
 
   @protected
@@ -409,6 +556,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  bool sse_decode_bool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint8() != 0;
+  }
+
+  @protected
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_i_64(deserializer));
@@ -466,12 +619,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt sse_decode_usize(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getBigUint64();
-  }
-
-  @protected
-  bool sse_decode_bool(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getUint8() != 0;
   }
 
   @protected
@@ -546,6 +693,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_bool(bool self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint8(self ? 1 : 0);
+  }
+
+  @protected
   void sse_encode_box_autoadd_i_64(
     PlatformInt64 self,
     SseSerializer serializer,
@@ -611,12 +764,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
   }
-
-  @protected
-  void sse_encode_bool(bool self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putUint8(self ? 1 : 0);
-  }
 }
 
 @sealed
@@ -650,5 +797,25 @@ class TimerServiceImpl extends RustOpaque implements TimerService {
     that: this,
     command: command,
     seconds: seconds,
+  );
+
+  /// Updates timer settings for phases that have not started yet.
+  Future<void> updateSettings({
+    required int durationPomodoro,
+    required int additionalDuration,
+    required int durationShortBreak,
+    required int durationLongBreak,
+    required int intervalLongBreak,
+    required bool autoStartBreak,
+    required bool autoStartPomodoro,
+  }) => RustLib.instance.api.crateApiSimpleTimerServiceUpdateSettings(
+    that: this,
+    durationPomodoro: durationPomodoro,
+    additionalDuration: additionalDuration,
+    durationShortBreak: durationShortBreak,
+    durationLongBreak: durationLongBreak,
+    intervalLongBreak: intervalLongBreak,
+    autoStartBreak: autoStartBreak,
+    autoStartPomodoro: autoStartPomodoro,
   );
 }

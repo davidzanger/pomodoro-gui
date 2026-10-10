@@ -8,7 +8,7 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 flutter_rust_bridge = "=2.13.0"
-locking-pomodoro-timer = { path = "../../../pomodoro" }
+locking-pomodoro-timer = { path = "../../pomodoro" }
 serde_json = "1"
 
 [lints.rust]

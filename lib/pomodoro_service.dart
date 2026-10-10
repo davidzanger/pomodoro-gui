@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import 'app_settings.dart';
 import 'app_logging.dart';
 import 'src/rust/api/simple.dart' as rust_api;
 import 'src/rust/frb_generated.dart';
@@ -12,27 +14,38 @@ abstract class TimerController extends ChangeNotifier {
   TimerSnapshot get snapshot;
   bool get isConnected;
   String? get errorMessage;
+  Future<TimerOptions> loadSettings();
   Future<void> connect();
   Future<void> sendCommand(String type, {int? seconds});
+  Future<void> updateSettings(TimerOptions options);
 }
 
 abstract interface class TimerServiceConnection {
   Stream<String> events();
   Future<void> sendCommand(String type, {int? seconds});
+  Future<void> updateSettings(TimerOptions options);
 }
 
 typedef TimerServiceFactory = Future<TimerServiceConnection> Function();
+typedef TimerSettingsLoader = Future<TimerOptions> Function();
+typedef TimerSettingsSaver = Future<void> Function(TimerOptions options);
 
 class PomodoroService extends TimerController {
   PomodoroService({
     TimerServiceFactory? serviceFactory,
+    TimerSettingsLoader? settingsLoader,
+    TimerSettingsSaver? settingsSaver,
     bool Function()? isSupportedPlatform,
   }) : _serviceFactory = serviceFactory ?? _createTimerService,
+       _settingsLoader = settingsLoader ?? _loadRustTimerSettings,
+       _settingsSaver = settingsSaver ?? _saveRustTimerSettings,
        _isSupportedPlatform =
            isSupportedPlatform ??
            (() => serviceFactory != null || Platform.isWindows);
 
   final TimerServiceFactory _serviceFactory;
+  final TimerSettingsLoader _settingsLoader;
+  final TimerSettingsSaver _settingsSaver;
   final bool Function() _isSupportedPlatform;
   TimerServiceConnection? _service;
   StreamSubscription<String>? _eventSubscription;
@@ -47,6 +60,7 @@ class PomodoroService extends TimerController {
   bool _isConnected = false;
   bool _disposed = false;
   bool _connecting = false;
+  TimerOptions? _pendingSettings;
 
   @override
   TimerSnapshot get snapshot => _snapshot;
@@ -56,6 +70,9 @@ class PomodoroService extends TimerController {
 
   @override
   String? get errorMessage => _errorMessage;
+
+  @override
+  Future<TimerOptions> loadSettings() => _settingsLoader();
 
   @override
   Future<void> connect() async {
@@ -109,6 +126,26 @@ class PomodoroService extends TimerController {
     }
   }
 
+  @override
+  Future<void> updateSettings(TimerOptions options) async {
+    options.validate();
+    await _settingsSaver(options);
+    final service = _service;
+    if (service == null || !_isConnected) {
+      _pendingSettings = options;
+      return;
+    }
+
+    try {
+      await service.updateSettings(options);
+      appTalker.info('Updated Rust timer settings.');
+    } on Object catch (error, stackTrace) {
+      final message = 'Could not update Rust timer settings: $error';
+      _setError(message);
+      Error.throwWithStackTrace(StateError(message), stackTrace);
+    }
+  }
+
   void _handleLine(String line) {
     if (_disposed) return;
     try {
@@ -119,6 +156,11 @@ class PomodoroService extends TimerController {
           _errorMessage = null;
           appTalker.info('Rust timer is ready.');
           notifyListeners();
+          final pendingSettings = _pendingSettings;
+          if (pendingSettings != null) {
+            _pendingSettings = null;
+            unawaited(_applyPendingSettings(pendingSettings));
+          }
         case 'state':
           final previousSnapshot = _snapshot;
           _snapshot = event.state!;
@@ -181,6 +223,19 @@ class PomodoroService extends TimerController {
     }
   }
 
+  Future<void> _applyPendingSettings(TimerOptions options) async {
+    try {
+      await _service?.updateSettings(options);
+      appTalker.info('Applied saved Rust timer settings.');
+    } on Object catch (error, stackTrace) {
+      appTalker.handle(
+        error,
+        stackTrace,
+        'Could not apply saved timer settings.',
+      );
+    }
+  }
+
   @override
   void dispose() {
     _disposed = true;
@@ -197,6 +252,16 @@ class PomodoroService extends TimerController {
 Future<TimerServiceConnection> _createTimerService() async {
   await RustLib.init();
   return RustTimerServiceConnection(await rust_api.createTimerService());
+}
+
+Future<TimerOptions> _loadRustTimerSettings() async {
+  await RustLib.init();
+  return TimerOptions.decode(await rust_api.loadTimerSettings());
+}
+
+Future<void> _saveRustTimerSettings(TimerOptions options) async {
+  await RustLib.init();
+  await rust_api.saveTimerSettings(settingsJson: jsonEncode(options.toJson()));
 }
 
 @visibleForTesting
@@ -220,5 +285,18 @@ class RustTimerServiceConnection implements TimerServiceConnection {
       _ => throw ArgumentError.value(type, 'type', 'Unknown timer command'),
     };
     return _service.sendCommand(command: command, seconds: seconds);
+  }
+
+  @override
+  Future<void> updateSettings(TimerOptions options) {
+    return _service.updateSettings(
+      durationPomodoro: options.durationPomodoro,
+      additionalDuration: options.additionalDuration,
+      durationShortBreak: options.durationShortBreak,
+      durationLongBreak: options.durationLongBreak,
+      intervalLongBreak: options.intervalLongBreak,
+      autoStartBreak: options.autoStartBreak,
+      autoStartPomodoro: options.autoStartPomodoro,
+    );
   }
 }

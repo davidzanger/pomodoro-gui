@@ -4,9 +4,11 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 
+import 'app_settings.dart';
 import 'app_logging.dart';
 import 'pomodoro_service.dart';
 import 'service_protocol.dart';
+import 'settings_screen.dart';
 
 void main() {
   FlutterError.onError = (details) {
@@ -26,9 +28,10 @@ void main() {
 }
 
 class PomodoroApp extends StatefulWidget {
-  const PomodoroApp({super.key, this.controller});
+  const PomodoroApp({super.key, this.controller, this.settingsStore});
 
   final TimerController? controller;
+  final AppSettingsStore? settingsStore;
 
   @override
   State<PomodoroApp> createState() => _PomodoroAppState();
@@ -36,12 +39,55 @@ class PomodoroApp extends StatefulWidget {
 
 class _PomodoroAppState extends State<PomodoroApp> {
   late final TimerController _controller;
+  late final AppSettingsStore _settingsStore;
+  AppSettings _settings = const AppSettings();
+  String? _settingsError;
 
   @override
   void initState() {
     super.initState();
     _controller = widget.controller ?? PomodoroService();
-    unawaited(_controller.connect());
+    _settingsStore =
+        widget.settingsStore ?? SharedPreferencesAppSettingsStore();
+    unawaited(_loadSettingsAndConnect());
+  }
+
+  Future<void> _loadSettingsAndConnect() async {
+    try {
+      final appSettings = await _settingsStore.load();
+      final timerOptions = await _controller.loadSettings();
+      final settings = AppSettings(
+        timerOptions: timerOptions,
+        theme: appSettings.theme,
+      );
+      if (mounted) setState(() => _settings = settings);
+    } on Object catch (error, stackTrace) {
+      appTalker.handle(error, stackTrace, 'Could not load app settings.');
+      if (mounted) setState(() => _settingsError = error.toString());
+    }
+    await _controller.connect();
+  }
+
+  Future<void> _saveSettings(AppSettings settings) async {
+    await _settingsStore.save(settings);
+    if (mounted) {
+      setState(() {
+        _settings = settings;
+        _settingsError = null;
+      });
+    }
+    await _controller.updateSettings(settings.timerOptions);
+  }
+
+  Future<void> _resetSettings(AppSettings settings) async {
+    await _settingsStore.reset(settings);
+    if (mounted) {
+      setState(() {
+        _settings = settings;
+        _settingsError = null;
+      });
+    }
+    await _controller.updateSettings(settings.timerOptions);
   }
 
   @override
@@ -52,45 +98,77 @@ class _PomodoroAppState extends State<PomodoroApp> {
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = switch (_settings.theme) {
+      AppThemePreference.system => ThemeMode.system,
+      AppThemePreference.light => ThemeMode.light,
+      AppThemePreference.dark => ThemeMode.dark,
+    };
     return MaterialApp(
       title: 'Pomodoro',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF1F4EF),
-        colorScheme:
-            ColorScheme.fromSeed(
-              seedColor: const Color(0xFF245B50),
-              brightness: Brightness.light,
-            ).copyWith(
-              primary: const Color(0xFF245B50),
-              secondary: const Color(0xFFC2E66B),
-              error: const Color(0xFFB7503E),
-            ),
-        textTheme: const TextTheme(
-          displayLarge: TextStyle(
-            fontFamily: 'Georgia',
-            fontSize: 76,
-            fontWeight: FontWeight.w400,
-            color: Color(0xFF18342F),
-          ),
-          headlineMedium: TextStyle(
-            fontFamily: 'Georgia',
-            fontSize: 30,
-            color: Color(0xFF18342F),
-          ),
-          bodyMedium: TextStyle(fontSize: 14, color: Color(0xFF596863)),
-        ),
+      theme: _themeData(Brightness.light),
+      darkTheme: _themeData(Brightness.dark),
+      themeMode: themeMode,
+      home: PomodoroHome(
+        controller: _controller,
+        settings: _settings,
+        settingsError: _settingsError,
+        onSettingsChanged: _saveSettings,
+        onSettingsReset: _resetSettings,
       ),
-      home: PomodoroHome(controller: _controller),
     );
   }
 }
 
+ThemeData _themeData(Brightness brightness) {
+  final dark = brightness == Brightness.dark;
+  final colorScheme =
+      ColorScheme.fromSeed(
+        seedColor: const Color(0xFF245B50),
+        brightness: brightness,
+      ).copyWith(
+        primary: dark ? const Color(0xFF9CC8B9) : const Color(0xFF245B50),
+        secondary: const Color(0xFFC2E66B),
+        error: const Color(0xFFB7503E),
+      );
+  return ThemeData(
+    useMaterial3: true,
+    scaffoldBackgroundColor: dark
+        ? const Color(0xFF17211F)
+        : const Color(0xFFF1F4EF),
+    colorScheme: colorScheme,
+    textTheme: TextTheme(
+      displayLarge: TextStyle(
+        fontFamily: 'Georgia',
+        fontSize: 76,
+        fontWeight: FontWeight.w400,
+        color: colorScheme.onSurface,
+      ),
+      headlineMedium: TextStyle(
+        fontFamily: 'Georgia',
+        fontSize: 30,
+        color: colorScheme.onSurface,
+      ),
+      bodyMedium: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant),
+    ),
+  );
+}
+
 class PomodoroHome extends StatelessWidget {
-  const PomodoroHome({super.key, required this.controller});
+  const PomodoroHome({
+    super.key,
+    required this.controller,
+    required this.settings,
+    required this.settingsError,
+    required this.onSettingsChanged,
+    required this.onSettingsReset,
+  });
 
   final TimerController controller;
+  final AppSettings settings;
+  final String? settingsError;
+  final AppSettingsChanged onSettingsChanged;
+  final AppSettingsChanged onSettingsReset;
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +191,18 @@ class PomodoroHome extends StatelessWidget {
                     children: [
                       _TopBar(
                         connected: controller.isConnected,
+                        onShowSettings: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => SettingsScreen(
+                                settings: settings,
+                                loadError: settingsError,
+                                onSettingsChanged: onSettingsChanged,
+                                onReset: onSettingsReset,
+                              ),
+                            ),
+                          );
+                        },
                         onShowLogs: () {
                           appTalker.info('Opened the app log viewer.');
                           Navigator.of(context).push(
@@ -123,6 +213,10 @@ class PomodoroHome extends StatelessWidget {
                         },
                       ),
                       const SizedBox(height: 28),
+                      if (settingsError != null)
+                        _ConnectionError(
+                          message: 'Could not load settings: $settingsError',
+                        ),
                       if (controller.errorMessage != null)
                         _ConnectionError(message: controller.errorMessage!),
                       Expanded(
@@ -150,9 +244,14 @@ class PomodoroHome extends StatelessWidget {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.connected, required this.onShowLogs});
+  const _TopBar({
+    required this.connected,
+    required this.onShowSettings,
+    required this.onShowLogs,
+  });
 
   final bool connected;
+  final VoidCallback onShowSettings;
   final VoidCallback onShowLogs;
 
   @override
@@ -163,16 +262,19 @@ class _TopBar extends StatelessWidget {
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: const Color(0xFFC2E66B),
+            color: Theme.of(context).colorScheme.secondary,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: const Icon(Icons.hourglass_bottom, color: Color(0xFF18342F)),
+          child: Icon(
+            Icons.hourglass_bottom,
+            color: Theme.of(context).colorScheme.onSecondary,
+          ),
         ),
         const SizedBox(width: 12),
-        const Text(
+        Text(
           'POMODORO',
           style: TextStyle(
-            color: Color(0xFF18342F),
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 13,
             fontWeight: FontWeight.w800,
           ),
@@ -181,19 +283,26 @@ class _TopBar extends StatelessWidget {
         Icon(
           Icons.circle,
           size: 9,
-          color: connected ? const Color(0xFF4F8B52) : const Color(0xFFB7503E),
+          color: connected
+              ? const Color(0xFF4F8B52)
+              : Theme.of(context).colorScheme.error,
         ),
         const SizedBox(width: 8),
         Text(
           connected ? 'ENGINE CONNECTED' : 'CONNECTING TO RUST',
-          style: const TextStyle(
-            color: Color(0xFF596863),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: 11,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.6,
           ),
         ),
         const SizedBox(width: 8),
+        IconButton(
+          tooltip: 'Settings',
+          onPressed: onShowSettings,
+          icon: const Icon(Icons.settings_outlined),
+        ),
         IconButton(
           tooltip: 'View logs',
           onPressed: onShowLogs,
@@ -259,6 +368,7 @@ class _TimerDial extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final time = snapshot.phase == null
         ? '--:--'
         : _formatDuration(snapshot.remaining);
@@ -274,8 +384,8 @@ class _TimerDial extends StatelessWidget {
                 value: snapshot.progress,
                 strokeWidth: 6,
                 strokeCap: StrokeCap.round,
-                backgroundColor: const Color(0xFFDDE4DC),
-                color: const Color(0xFF245B50),
+                backgroundColor: colors.surfaceContainerHighest,
+                color: colors.primary,
               ),
             ),
             Column(
@@ -283,8 +393,8 @@ class _TimerDial extends StatelessWidget {
               children: [
                 Text(
                   snapshot.phase == null ? 'READY WHEN YOU ARE' : 'TIME LEFT',
-                  style: const TextStyle(
-                    color: Color(0xFF74817A),
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.2,
@@ -303,8 +413,8 @@ class _TimerDial extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   snapshot.status.label.toUpperCase(),
-                  style: const TextStyle(
-                    color: Color(0xFF596863),
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.8,
@@ -327,6 +437,7 @@ class _SessionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final title = snapshot.phase?.label ?? 'A little focus goes a long way.';
     final sessionLabel = snapshot.completedPomodoros == 1
         ? 'session'
@@ -338,10 +449,10 @@ class _SessionPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text(
+        Text(
           'FOCUS SESSION',
           style: TextStyle(
-            color: Color(0xFF77827C),
+            color: colors.onSurfaceVariant,
             fontSize: 11,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.4,
@@ -358,8 +469,8 @@ class _SessionPanel extends StatelessWidget {
         const SizedBox(height: 18),
         Text(
           'Pomodoro ${snapshot.completedPomodoros + 1}',
-          style: const TextStyle(
-            color: Color(0xFF596863),
+          style: TextStyle(
+            color: colors.onSurfaceVariant,
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
@@ -376,20 +487,21 @@ class _NextSession extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFE5EBE1),
+        color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(7),
       ),
       child: Row(
         children: [
-          const Icon(Icons.skip_next, color: Color(0xFF245B50), size: 18),
+          Icon(Icons.skip_next, color: colors.primary, size: 18),
           const SizedBox(width: 9),
-          const Text(
+          Text(
             'UP NEXT',
             style: TextStyle(
-              color: Color(0xFF74817A),
+              color: colors.onSurfaceVariant,
               fontSize: 10,
               fontWeight: FontWeight.w800,
               letterSpacing: 1,
@@ -399,8 +511,8 @@ class _NextSession extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
-                color: Color(0xFF18342F),
+              style: TextStyle(
+                color: colors.onSurface,
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
@@ -530,6 +642,7 @@ class _ControlsState extends State<_Controls> {
   Widget build(BuildContext context) {
     final snapshot = widget.snapshot;
     final controller = widget.controller;
+    final colors = Theme.of(context).colorScheme;
     final connected = controller.isConnected;
     final waiting = snapshot.status == TimerStatus.waiting;
     final paused = snapshot.status == TimerStatus.paused;
@@ -548,8 +661,8 @@ class _ControlsState extends State<_Controls> {
           icon: Icon(startingBreak ? Icons.play_arrow : Icons.timer_outlined),
           label: Text(startingBreak ? 'START BREAK' : 'START SESSION'),
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF245B50),
-            foregroundColor: Colors.white,
+            backgroundColor: colors.primary,
+            foregroundColor: colors.onPrimary,
             minimumSize: const Size(184, 52),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(7),
@@ -563,8 +676,8 @@ class _ControlsState extends State<_Controls> {
                 controller.sendCommand(paused ? 'resume' : 'pause'),
             icon: Icon(paused ? Icons.play_arrow : Icons.pause),
             style: IconButton.styleFrom(
-              foregroundColor: const Color(0xFF18342F),
-              backgroundColor: const Color(0xFFC2E66B),
+              foregroundColor: colors.onSecondary,
+              backgroundColor: colors.secondary,
               fixedSize: const Size(52, 52),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(7),
@@ -593,7 +706,7 @@ class _ControlsState extends State<_Controls> {
                 : null,
             icon: Icon(canControl ? Icons.skip_next : Icons.stop),
             style: IconButton.styleFrom(
-              foregroundColor: const Color(0xFFB7503E),
+              foregroundColor: colors.error,
               fixedSize: const Size(52, 52),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(7),
@@ -612,22 +725,23 @@ class _ConnectionError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 18),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8E7E1),
-        border: Border.all(color: const Color(0xFFE5B8AA)),
+        color: colors.errorContainer,
+        border: Border.all(color: colors.error),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, color: Color(0xFF9D4638), size: 18),
+          Icon(Icons.error_outline, color: colors.onErrorContainer, size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: Color(0xFF77382E), fontSize: 13),
+              style: TextStyle(color: colors.onErrorContainer, fontSize: 13),
             ),
           ),
         ],
@@ -641,22 +755,23 @@ class _Footer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    final colors = Theme.of(context).colorScheme;
+    return Row(
       children: [
         Text(
           'LOCKING POMODORO TIMER',
           style: TextStyle(
-            color: Color(0xFF87918B),
+            color: colors.onSurfaceVariant,
             fontSize: 10,
             fontWeight: FontWeight.w700,
             letterSpacing: 1,
           ),
         ),
-        Spacer(),
+        const Spacer(),
         Text(
           'DESKTOP',
           style: TextStyle(
-            color: Color(0xFF87918B),
+            color: colors.onSurfaceVariant,
             fontSize: 10,
             fontWeight: FontWeight.w700,
             letterSpacing: 1,

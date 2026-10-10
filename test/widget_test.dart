@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 
+import 'package:pomodoro_gui/app_settings.dart';
 import 'package:pomodoro_gui/main.dart';
 import 'package:pomodoro_gui/pomodoro_service.dart';
 import 'package:pomodoro_gui/service_protocol.dart';
@@ -41,6 +42,11 @@ class FakeTimerController extends TimerController {
   final Object? skipError;
   final List<String> commands = [];
   final List<int?> commandSeconds = [];
+  final List<TimerOptions> settingsUpdates = [];
+  TimerOptions loadedTimerOptions = const TimerOptions();
+
+  @override
+  Future<TimerOptions> loadSettings() async => loadedTimerOptions;
 
   @override
   TimerSnapshot get snapshot => _snapshot;
@@ -125,16 +131,29 @@ class FakeTimerController extends TimerController {
     }
   }
 
+  @override
+  Future<void> updateSettings(TimerOptions options) async {
+    settingsUpdates.add(options);
+  }
+
   void update(TimerSnapshot snapshot) {
     _snapshot = snapshot;
     notifyListeners();
   }
 }
 
+Future<void> _pumpPomodoroApp(
+  WidgetTester tester,
+  FakeTimerController controller,
+  AppSettingsStore settingsStore,
+) => tester.pumpWidget(
+  PomodoroApp(controller: controller, settingsStore: settingsStore),
+);
+
 void main() {
   testWidgets('starts a Pomodoro through the timer controller', (tester) async {
     final controller = FakeTimerController();
-    await tester.pumpWidget(PomodoroApp(controller: controller));
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
 
     expect(find.text('POMODORO'), findsOneWidget);
     expect(find.text('--:--'), findsOneWidget);
@@ -158,7 +177,7 @@ void main() {
         completedPomodoros: 0,
       ),
     );
-    await tester.pumpWidget(PomodoroApp(controller: controller));
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
 
     expect(find.text('UP NEXT'), findsOneWidget);
     expect(find.text('Additional focus'), findsOneWidget);
@@ -193,7 +212,7 @@ void main() {
       skipResponseDelay: const Duration(seconds: 1),
       waitAfterAdditionalPomodoro: true,
     );
-    await tester.pumpWidget(PomodoroApp(controller: controller));
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
 
     final skipButton = find.byTooltip('Skip to next session');
     await tester.tap(skipButton);
@@ -214,12 +233,92 @@ void main() {
     tester,
   ) async {
     final controller = FakeTimerController();
-    await tester.pumpWidget(PomodoroApp(controller: controller));
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
 
     await tester.tap(find.byTooltip('View logs'));
     await tester.pumpAndSettle();
 
     expect(find.byType(TalkerScreen), findsOneWidget);
+  });
+
+  testWidgets('opens settings and immediately persists valid timer changes', (
+    tester,
+  ) async {
+    final controller = FakeTimerController();
+    final settingsStore = MemoryAppSettingsStore();
+    await _pumpPomodoroApp(tester, controller, settingsStore);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Focus duration'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const ValueKey('pomodoro')), '30');
+    await tester.pumpAndSettle();
+
+    expect((await settingsStore.load()).timerOptions.durationPomodoro, 30);
+    expect(controller.settingsUpdates.last.durationPomodoro, 30);
+  });
+
+  testWidgets('loads Rust timer options and Flutter theme independently', (
+    tester,
+  ) async {
+    final controller = FakeTimerController()
+      ..loadedTimerOptions = const TimerOptions(durationPomodoro: 42);
+    final settingsStore = MemoryAppSettingsStore(
+      const AppSettings(theme: AppThemePreference.dark),
+    );
+    await _pumpPomodoroApp(tester, controller, settingsStore);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
+      ThemeMode.dark,
+    );
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const ValueKey('pomodoro')))
+          .controller!
+          .text,
+      '42',
+    );
+  });
+
+  testWidgets('settings reject invalid durations and can change app theme', (
+    tester,
+  ) async {
+    final controller = FakeTimerController();
+    final settingsStore = MemoryAppSettingsStore();
+    await _pumpPomodoroApp(tester, controller, settingsStore);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('pomodoro')), '0');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Enter a whole number'), findsOneWidget);
+    expect((await settingsStore.load()).timerOptions.durationPomodoro, 25);
+    expect(controller.settingsUpdates, isEmpty);
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('theme')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('theme')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dark').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
+      ThemeMode.dark,
+    );
+    expect((await settingsStore.load()).theme, AppThemePreference.dark);
   });
 
   testWidgets('pauses and resumes a running session', (tester) async {
@@ -232,7 +331,7 @@ void main() {
         completedPomodoros: 0,
       ),
     );
-    await tester.pumpWidget(PomodoroApp(controller: controller));
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
 
     expect(find.text('23:59'), findsOneWidget);
     await tester.tap(find.byTooltip('Pause timer'));
@@ -260,7 +359,7 @@ void main() {
       connected: false,
       initialErrorMessage: 'Connection unavailable',
     );
-    await tester.pumpWidget(PomodoroApp(controller: controller));
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
 
     expect(find.text('Connection unavailable'), findsOneWidget);
     expect(find.text('CONNECTING TO RUST'), findsOneWidget);
@@ -286,7 +385,7 @@ void main() {
         completedPomodoros: 1,
       ),
     );
-    await tester.pumpWidget(PomodoroApp(controller: controller));
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
 
     expect(find.text('START BREAK'), findsOneWidget);
     await tester.tap(find.text('START BREAK'));
@@ -325,7 +424,7 @@ void main() {
         completedPomodoros: 4,
       ),
     );
-    await tester.pumpWidget(PomodoroApp(controller: controller));
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
 
     expect(find.text('00:00'), findsOneWidget);
     expect(find.text('PAUSED'), findsOneWidget);
@@ -347,7 +446,7 @@ void main() {
       ),
       skipError: StateError('skip failed'),
     );
-    await tester.pumpWidget(PomodoroApp(controller: controller));
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
     await tester.tap(find.byTooltip('Skip to next session'));
     await tester.pump();
     expect(
@@ -365,7 +464,7 @@ void main() {
       ),
       skipDoesNotAdvance: true,
     );
-    await tester.pumpWidget(PomodoroApp(controller: silentController));
+    await _pumpPomodoroApp(tester, silentController, MemoryAppSettingsStore());
     await tester.tap(find.byTooltip('Skip to next session'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 5));
@@ -415,7 +514,7 @@ void main() {
         skipResponseDelay: const Duration(milliseconds: 1),
         skipDoesNotAdvance: true,
       );
-      await tester.pumpWidget(PomodoroApp(controller: controller));
+      await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
 
       for (var index = 0; index < nextSnapshots.length; index++) {
         if (index > 0) {

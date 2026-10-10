@@ -6,6 +6,16 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+/// Loads the Rust timer options used by the settings screen.
+Future<String> loadTimerSettings() =>
+    RustLib.instance.api.crateApiSimpleLoadTimerSettings();
+
+/// Persists validated timer options through the Rust configuration owner.
+Future<void> saveTimerSettings({required String settingsJson}) => RustLib
+    .instance
+    .api
+    .crateApiSimpleSaveTimerSettings(settingsJson: settingsJson);
+
 /// Creates a timer service and starts its Rust worker thread.
 Future<TimerService> createTimerService() =>
     RustLib.instance.api.crateApiSimpleCreateTimerService();
@@ -19,6 +29,17 @@ abstract class TimerService implements RustOpaqueInterface {
   Future<void> sendCommand({
     required TimerCommand command,
     PlatformInt64? seconds,
+  });
+
+  /// Updates timer settings for phases that have not started yet.
+  Future<void> updateSettings({
+    required int durationPomodoro,
+    required int additionalDuration,
+    required int durationShortBreak,
+    required int durationLongBreak,
+    required int intervalLongBreak,
+    required bool autoStartBreak,
+    required bool autoStartPomodoro,
   });
 }
 

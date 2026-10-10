@@ -21,6 +21,16 @@ pub enum TimerCommand {
     Quit,
 }
 
+/// Loads the Rust timer options used by the settings screen.
+pub fn load_timer_settings() -> Result<String, String> {
+    locking_pomodoro_timer::read_timer_settings_json()
+}
+
+/// Persists validated timer options through the Rust configuration owner.
+pub fn save_timer_settings(settings_json: String) -> Result<(), String> {
+    locking_pomodoro_timer::save_timer_settings_json(&settings_json)
+}
+
 /// Creates a timer service and starts its Rust worker thread.
 pub fn create_timer_service() -> Result<TimerService, String> {
     let (command_sender, command_receiver) = mpsc::channel();
@@ -96,6 +106,40 @@ impl TimerService {
         self.commands
             .send(request)
             .map_err(|error| format!("Could not send command to Rust timer: {error}"))
+    }
+
+    /// Updates timer settings for phases that have not started yet.
+    pub fn update_settings(
+        &self,
+        duration_pomodoro: i32,
+        additional_duration: i32,
+        duration_short_break: i32,
+        duration_long_break: i32,
+        interval_long_break: i32,
+        auto_start_break: bool,
+        auto_start_pomodoro: bool,
+    ) -> Result<(), String> {
+        let command = serde_json::json!({
+            "type": "updateSettings",
+            "settings": {
+                "durationPomodoro": duration_pomodoro,
+                "additionalDuration": additional_duration,
+                "durationShortBreak": duration_short_break,
+                "durationLongBreak": duration_long_break,
+                "intervalLongBreak": interval_long_break,
+                "autoStartBreak": auto_start_break,
+                "autoStartPomodoro": auto_start_pomodoro,
+            },
+        });
+        self.commands
+            .send(
+                serde_json::json!({
+                    "protocolVersion": 1,
+                    "command": command,
+                })
+                .to_string(),
+            )
+            .map_err(|error| format!("Could not update Rust timer settings: {error}"))
     }
 }
 

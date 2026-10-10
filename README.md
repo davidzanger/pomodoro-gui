@@ -7,7 +7,7 @@ Windows desktop app for the [Locking Pomodoro Timer](https://github.com/davidzan
 - Flutter with Windows desktop and Native Assets support (the checked setup uses Flutter 3.47 and Dart 3.13).
 - Rust toolchain 1.93.1, installed automatically by the Rust toolchain file.
 - Visual Studio C++ desktop tools and a Windows SDK.
-- The Rust repository checked out at `..\..\pomodoro` relative to this repository.
+- The Rust repository checked out at `..\pomodoro` relative to this repository.
 - `flutter_rust_bridge_codegen` 2.13.0 for regenerating the bindings.
 
 The generated Windows runner is intentionally not versioned. On a fresh clone, create it once with the Flutter SDK installed:
@@ -25,6 +25,8 @@ flutter run -d windows
 ```
 
 The generated FRB API is in `lib/src/rust/`; edit the bridge API in `rust/src/api/`. The Native Assets hook builds the Rust library during the Flutter Windows build. The Rust timer keeps its `pomodoro_options.json` beside the Flutter executable.
+
+The top-bar **Settings** button opens timer and appearance settings. Timer durations, break cycles, and automatic starts are loaded and saved by Rust through the Flutter Rust Bridge in `pomodoro_options.json`; other Rust timer options are preserved. The app theme is stored separately by Flutter using `shared_preferences` and is never written to the Rust options file. Changes to a running phase take effect on the next phase.
 
 ## In-app logs
 

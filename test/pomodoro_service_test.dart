@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pomodoro_gui/app_settings.dart';
 import 'package:pomodoro_gui/pomodoro_service.dart';
 import 'package:pomodoro_gui/service_protocol.dart';
 import 'package:pomodoro_gui/src/rust/api/simple.dart' as rust_api;
@@ -16,7 +17,8 @@ class FakeGeneratedTimerService extends Fake implements rust_api.TimerService {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
-    if (invocation.memberName == #sendCommand) {
+    if (invocation.memberName == #sendCommand ||
+        invocation.memberName == #updateSettings) {
       commands.add(invocation);
       return Future<void>.value();
     }
@@ -28,7 +30,9 @@ class FakeTimerServiceConnection implements TimerServiceConnection {
   final StreamController<String> _events = StreamController<String>();
   final List<String> commands = [];
   final List<int?> commandSeconds = [];
+  final List<TimerOptions> settingsUpdates = [];
   Object? sendError;
+  Object? settingsError;
   bool closeOnQuit = true;
 
   Future<void> get done => _events.done;
@@ -52,6 +56,12 @@ class FakeTimerServiceConnection implements TimerServiceConnection {
     commandSeconds.add(seconds);
     if (sendError case final error?) throw error;
     if (type == 'quit' && closeOnQuit) unawaited(close());
+  }
+
+  @override
+  Future<void> updateSettings(TimerOptions options) async {
+    if (settingsError case final error?) throw error;
+    settingsUpdates.add(options);
   }
 }
 
@@ -92,6 +102,12 @@ void main() {
       ),
       everyElement(42),
     );
+    const timerOptions = TimerOptions(durationPomodoro: 35);
+    await connection.updateSettings(timerOptions);
+    final update = generatedService.commands.last;
+    expect(update.memberName, #updateSettings);
+    expect(update.namedArguments[#durationPomodoro], 35);
+    expect(update.namedArguments[#additionalDuration], 5);
     expect(() => connection.sendCommand('other'), throwsArgumentError);
     await generatedService.eventController.close();
   });
@@ -105,6 +121,7 @@ void main() {
         return connection;
       },
     );
+
     var notifications = 0;
     service.addListener(() => notifications++);
 
@@ -161,6 +178,34 @@ void main() {
     expect(notifications, greaterThanOrEqualTo(6));
 
     service.dispose();
+    await connection.done;
+  });
+
+  test('queues settings until connected and reports update failures', () async {
+    final connection = FakeTimerServiceConnection()..closeOnQuit = false;
+    final persistedSettings = <TimerOptions>[];
+    final service = PomodoroService(
+      serviceFactory: () async => connection,
+      settingsLoader: () async => const TimerOptions(durationPomodoro: 35),
+      settingsSaver: (options) async => persistedSettings.add(options),
+    );
+    const options = TimerOptions(durationPomodoro: 40);
+
+    expect((await service.loadSettings()).durationPomodoro, 35);
+    await service.updateSettings(options);
+    expect(persistedSettings, [options]);
+    await service.connect();
+    connection.emitEvent({'type': 'ready'});
+    await Future<void>.delayed(Duration.zero);
+
+    expect(connection.settingsUpdates, [options]);
+
+    connection.settingsError = StateError('settings rejected');
+    await expectLater(service.updateSettings(options), throwsStateError);
+    expect(service.errorMessage, contains('settings rejected'));
+
+    service.dispose();
+    await connection.close();
     await connection.done;
   });
 
