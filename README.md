@@ -24,7 +24,11 @@ flutter_rust_bridge_codegen generate
 flutter run -d windows
 ```
 
-The generated FRB API is in `lib/src/rust/`; edit the bridge API in `rust/src/api/`. The Native Assets hook builds the Rust library during the Flutter Windows build. The Rust timer keeps its `pomodoro_options.json` beside the Flutter executable.
+## Windows Rust integration
+
+The generated FRB API is in `lib/src/rust/`; edit the bridge API in `rust/src/api/`. `flutter_rust_bridge.yaml` points code generation at that API, and `hook/build.dart` builds the bridge crate as a Windows Native Asset during the Flutter build. The timer logic remains in the sibling `pomodoro` repository, which is a path dependency of the bridge crate. The Rust timer keeps its `pomodoro_options.json` beside the Flutter executable.
+
+The Flutter app needs neither a `POMODORO_RUST_EXECUTABLE` environment variable nor a separate `locking-pomodoro-timer.exe`. Rust's existing `--service` CLI entry point remains available for compatibility and testing.
 
 The top-bar **Settings** button opens timer and appearance settings. Timer durations, break cycles, and automatic starts are loaded and saved by Rust through the Flutter Rust Bridge in `pomodoro_options.json`; other Rust timer options are preserved. The app theme is stored separately by Flutter using `shared_preferences` and is never written to the Rust options file. Changes to a running phase take effect on the next phase.
 
@@ -58,10 +62,10 @@ compatibility.
 
 ## Single-file Windows package
 
-The regular Flutter release still consists of several runtime files, including `flutter_windows.dll`, the `data` directory, and the Rust native library. To create one file for distribution, run:
+The regular Flutter release still consists of several runtime files, including `flutter_windows.dll`, the `data` directory, and the Rust native library. To create one file for distribution, run [`tools/package-windows.ps1`](./tools/package-windows.ps1):
 
 ```powershell
 .\tools\package-windows.ps1
 ```
 
-If the generated `windows\` runner is missing, the script creates it before building. This builds the Windows release and produces `dist\Pomodoro.exe`. On first launch, that self-extracting executable places the complete app under `%LOCALAPPDATA%\PomodoroGui` and starts it from there. The extraction directory and Rust options file persist between launches. The package is one file to distribute, but it extracts multiple files to run.
+If the generated `windows\` runner is missing, the script creates it before building. This builds the Windows release and produces `dist\Pomodoro.exe`. On first launch, that self-extracting executable places the complete app under `%LOCALAPPDATA%\PomodoroGui` and starts it from there. The extraction directory and Rust options file persist between launches. The package is one file to distribute, but it extracts multiple files to run; it does not merge the Flutter runtime into one native PE executable.
