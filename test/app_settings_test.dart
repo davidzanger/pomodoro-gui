@@ -65,6 +65,34 @@ void main() {
     expect(json.containsKey('themeMode'), isFalse);
   });
 
+  test('actions and reminders round-trip in the Rust options format', () {
+    const options = TimerOptions(
+      endEventPomodoro: TimerEndEvent.sound('C:\\audio\\focus.wav'),
+      endEventAdditionalPomodoro: TimerEndEvent.sound(),
+      intervalReminderAfterBreak: 12,
+      eventReminderAfterBreak: TimerEndEvent.lockScreen(),
+    );
+    final decoded = TimerOptions.decode(options.encode());
+    final json = jsonDecode(options.encode()) as Map<String, dynamic>;
+
+    expect(decoded.endEventPomodoro.soundPath, 'C:\\audio\\focus.wav');
+    expect(decoded.endEventAdditionalPomodoro.kind, TimerEventKind.sound);
+    expect(decoded.intervalReminderAfterBreak, 12);
+    expect(decoded.eventReminderAfterBreak.kind, TimerEventKind.lockScreen);
+    expect(json['endEventPomodoro'], {
+      'sound': {'filepathSound': 'C:\\audio\\focus.wav'},
+    });
+    expect(json['eventReminderAfterBreak'], 'lockScreen');
+    expect(
+      () => const TimerOptions(intervalReminderAfterBreak: -1).validate(),
+      throwsFormatException,
+    );
+    expect(
+      () => TimerEndEvent.decode({'sound': 'bad'}, 'event'),
+      throwsFormatException,
+    );
+  });
+
   test('rejects invalid timer settings and malformed bridge responses', () {
     expect(
       () => const TimerOptions(intervalLongBreak: 0).validate(),

@@ -321,6 +321,58 @@ void main() {
     expect((await settingsStore.load()).theme, AppThemePreference.dark);
   });
 
+  testWidgets('settings explain and save actions and reminders', (
+    tester,
+  ) async {
+    final controller = FakeTimerController();
+    final settingsStore = MemoryAppSettingsStore();
+    await _pumpPomodoroApp(tester, controller, settingsStore);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+
+    final action = find.byKey(const ValueKey('pomodoro-kind-sound'));
+    await tester.scrollUntilVisible(
+      action,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final info = find.byTooltip(
+      'Choose a sound or lock the screen when a regular focus session or a break ends. An empty sound path uses the built-in sound.',
+    );
+    await tester.ensureVisible(info);
+    await tester.pumpAndSettle();
+    await tester.tap(info);
+    await tester.pumpAndSettle();
+    expect(find.text('When focus or a break ends'), findsNWidgets(2));
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lock screen').last);
+    await tester.pumpAndSettle();
+    expect(
+      (await settingsStore.load()).timerOptions.endEventPomodoro.kind,
+      TimerEventKind.lockScreen,
+    );
+
+    final interval = find.byKey(const ValueKey('reminderInterval'));
+    await tester.scrollUntilVisible(
+      interval,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(interval, '9');
+    await tester.pumpAndSettle();
+    expect(
+      (await settingsStore.load()).timerOptions.intervalReminderAfterBreak,
+      9,
+    );
+    expect(controller.settingsUpdates.last.intervalReminderAfterBreak, 9);
+  });
+
   testWidgets('pauses and resumes a running session', (tester) async {
     final controller = FakeTimerController(
       initialSnapshot: const TimerSnapshot(

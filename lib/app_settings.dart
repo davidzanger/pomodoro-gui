@@ -4,6 +4,40 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 enum AppThemePreference { system, light, dark }
 
+enum TimerEventKind { sound, lockScreen }
+
+class TimerEndEvent {
+  const TimerEndEvent.sound([this.soundPath = ''])
+    : kind = TimerEventKind.sound;
+  const TimerEndEvent.lockScreen()
+    : kind = TimerEventKind.lockScreen,
+      soundPath = '';
+
+  final TimerEventKind kind;
+  final String soundPath;
+
+  TimerEndEvent copyWith({TimerEventKind? kind, String? soundPath}) {
+    final nextKind = kind ?? this.kind;
+    return nextKind == TimerEventKind.lockScreen
+        ? const TimerEndEvent.lockScreen()
+        : TimerEndEvent.sound(soundPath ?? this.soundPath);
+  }
+
+  Object toJson() => kind == TimerEventKind.lockScreen
+      ? 'lockScreen'
+      : {
+          'sound': {'filepathSound': soundPath},
+        };
+
+  factory TimerEndEvent.decode(Object? value, String key) {
+    if (value == 'lockScreen') return const TimerEndEvent.lockScreen();
+    if (value case {'sound': {'filepathSound': String path}}) {
+      return TimerEndEvent.sound(path);
+    }
+    throw FormatException('The "$key" event must be a sound or screen lock.');
+  }
+}
+
 class TimerOptions {
   const TimerOptions({
     this.durationPomodoro = 25,
@@ -13,6 +47,10 @@ class TimerOptions {
     this.intervalLongBreak = 4,
     this.autoStartBreak = true,
     this.autoStartPomodoro = true,
+    this.endEventPomodoro = const TimerEndEvent.sound(),
+    this.endEventAdditionalPomodoro = const TimerEndEvent.lockScreen(),
+    this.intervalReminderAfterBreak = 5,
+    this.eventReminderAfterBreak = const TimerEndEvent.sound(),
   });
 
   final int durationPomodoro;
@@ -22,6 +60,10 @@ class TimerOptions {
   final int intervalLongBreak;
   final bool autoStartBreak;
   final bool autoStartPomodoro;
+  final TimerEndEvent endEventPomodoro;
+  final TimerEndEvent endEventAdditionalPomodoro;
+  final int intervalReminderAfterBreak;
+  final TimerEndEvent eventReminderAfterBreak;
 
   TimerOptions copyWith({
     int? durationPomodoro,
@@ -31,6 +73,10 @@ class TimerOptions {
     int? intervalLongBreak,
     bool? autoStartBreak,
     bool? autoStartPomodoro,
+    TimerEndEvent? endEventPomodoro,
+    TimerEndEvent? endEventAdditionalPomodoro,
+    int? intervalReminderAfterBreak,
+    TimerEndEvent? eventReminderAfterBreak,
   }) => TimerOptions(
     durationPomodoro: durationPomodoro ?? this.durationPomodoro,
     additionalDuration: additionalDuration ?? this.additionalDuration,
@@ -39,6 +85,13 @@ class TimerOptions {
     intervalLongBreak: intervalLongBreak ?? this.intervalLongBreak,
     autoStartBreak: autoStartBreak ?? this.autoStartBreak,
     autoStartPomodoro: autoStartPomodoro ?? this.autoStartPomodoro,
+    endEventPomodoro: endEventPomodoro ?? this.endEventPomodoro,
+    endEventAdditionalPomodoro:
+        endEventAdditionalPomodoro ?? this.endEventAdditionalPomodoro,
+    intervalReminderAfterBreak:
+        intervalReminderAfterBreak ?? this.intervalReminderAfterBreak,
+    eventReminderAfterBreak:
+        eventReminderAfterBreak ?? this.eventReminderAfterBreak,
   );
 
   void validate() {
@@ -68,6 +121,12 @@ class TimerOptions {
         'Long break interval is outside the supported range.',
       );
     }
+    if (intervalReminderAfterBreak < 0 ||
+        intervalReminderAfterBreak > maxMinutes) {
+      throw const FormatException(
+        'Reminder interval must be between 0 and 2147483647 minutes.',
+      );
+    }
   }
 
   Map<String, Object> toJson() => {
@@ -78,6 +137,10 @@ class TimerOptions {
     'intervalLongBreak': intervalLongBreak,
     'autoStartBreak': autoStartBreak,
     'autoStartPomodoro': autoStartPomodoro,
+    'endEventPomodoro': endEventPomodoro.toJson(),
+    'endEventAdditionalPomodoro': endEventAdditionalPomodoro.toJson(),
+    'intervalReminderAfterBreak': intervalReminderAfterBreak,
+    'eventReminderAfterBreak': eventReminderAfterBreak.toJson(),
   };
 
   String encode() => jsonEncode(toJson());
@@ -95,6 +158,29 @@ class TimerOptions {
       intervalLongBreak: _readInt(decoded, 'intervalLongBreak'),
       autoStartBreak: _readBool(decoded, 'autoStartBreak'),
       autoStartPomodoro: _readBool(decoded, 'autoStartPomodoro'),
+      endEventPomodoro: decoded.containsKey('endEventPomodoro')
+          ? TimerEndEvent.decode(
+              decoded['endEventPomodoro'],
+              'endEventPomodoro',
+            )
+          : const TimerEndEvent.sound(),
+      endEventAdditionalPomodoro:
+          decoded.containsKey('endEventAdditionalPomodoro')
+          ? TimerEndEvent.decode(
+              decoded['endEventAdditionalPomodoro'],
+              'endEventAdditionalPomodoro',
+            )
+          : const TimerEndEvent.lockScreen(),
+      intervalReminderAfterBreak:
+          decoded.containsKey('intervalReminderAfterBreak')
+          ? _readInt(decoded, 'intervalReminderAfterBreak')
+          : 5,
+      eventReminderAfterBreak: decoded.containsKey('eventReminderAfterBreak')
+          ? TimerEndEvent.decode(
+              decoded['eventReminderAfterBreak'],
+              'eventReminderAfterBreak',
+            )
+          : const TimerEndEvent.sound(),
     );
     options.validate();
     return options;

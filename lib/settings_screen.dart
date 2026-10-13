@@ -53,6 +53,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       'interval': TextEditingController(
         text: options.intervalLongBreak.toString(),
       ),
+      'reminderInterval': TextEditingController(
+        text: options.intervalReminderAfterBreak.toString(),
+      ),
+      'pomodoroSound': TextEditingController(
+        text: options.endEventPomodoro.soundPath,
+      ),
+      'additionalSound': TextEditingController(
+        text: options.endEventAdditionalPomodoro.soundPath,
+      ),
+      'reminderSound': TextEditingController(
+        text: options.eventReminderAfterBreak.soundPath,
+      ),
     };
   }
 
@@ -112,10 +124,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: const Text('Reset settings?'),
         content: Text(
           widget.loadError == null
-              ? 'Timer and appearance settings will return to their defaults. '
-                    'Other Rust timer options will be preserved.'
+              ? 'Timer, actions, reminders and appearance will return to their defaults.'
               : 'The options file could not be read. Resetting replaces it, '
-                    'so any other custom Rust timer options may be lost.',
+                    'so custom Rust timer options may be lost.',
         ),
         actions: [
           TextButton(
@@ -141,6 +152,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _controllers['shortBreak']!.text = '5';
       _controllers['longBreak']!.text = '15';
       _controllers['interval']!.text = '4';
+      _controllers['reminderInterval']!.text = '5';
+      _controllers['pomodoroSound']!.clear();
+      _controllers['additionalSound']!.clear();
+      _controllers['reminderSound']!.clear();
     });
     try {
       await widget.onReset(defaults);
@@ -162,20 +177,113 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String keyName,
     required String label,
     required String suffix,
+    required String explanation,
     required int minimum,
     required TimerOptions Function(TimerOptions, int) update,
   }) {
-    return TextFormField(
-      key: ValueKey(keyName),
-      controller: _controllers[keyName],
-      keyboardType: TextInputType.number,
-      decoration: InputDecoration(labelText: label, suffixText: suffix),
-      autovalidateMode: AutovalidateMode.onUserInteraction,
-      validator: (text) => _validateInteger(text, minimum),
-      onChanged: (text) => _updateInteger(text, minimum, update),
-      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _settingLabel(label, explanation),
+        const SizedBox(height: 6),
+        TextFormField(
+          key: ValueKey(keyName),
+          controller: _controllers[keyName],
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(suffixText: suffix),
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          validator: (text) => _validateInteger(text, minimum),
+          onChanged: (text) => _updateInteger(text, minimum, update),
+          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+        ),
+      ],
     );
   }
+
+  Widget _settingLabel(String label, String explanation) => Row(
+    children: [
+      Flexible(
+        child: Text(label, style: Theme.of(context).textTheme.titleSmall),
+      ),
+      _infoButton(label, explanation),
+    ],
+  );
+
+  Widget _infoButton(String label, String explanation) => IconButton(
+    tooltip: explanation,
+    visualDensity: VisualDensity.compact,
+    iconSize: 18,
+    icon: const Icon(Icons.info_outline),
+    onPressed: () => showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(label),
+        content: Text(explanation),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _eventField({
+    required String keyName,
+    required String label,
+    required String explanation,
+    required TimerEndEvent event,
+    required TimerOptions Function(TimerOptions, TimerEndEvent) update,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _settingLabel(label, explanation),
+      const SizedBox(height: 6),
+      DropdownButtonFormField<TimerEventKind>(
+        key: ValueKey('$keyName-kind-${event.kind.name}'),
+        initialValue: event.kind,
+        decoration: const InputDecoration(labelText: 'Action'),
+        items: const [
+          DropdownMenuItem(
+            value: TimerEventKind.sound,
+            child: Text('Play sound'),
+          ),
+          DropdownMenuItem(
+            value: TimerEventKind.lockScreen,
+            child: Text('Lock screen'),
+          ),
+        ],
+        onChanged: (kind) {
+          if (kind == null) return;
+          if (kind == TimerEventKind.lockScreen) {
+            _controllers['${keyName}Sound']!.clear();
+          }
+          _updateOptions(
+            (options) => update(options, event.copyWith(kind: kind)),
+          );
+        },
+      ),
+      if (event.kind == TimerEventKind.sound) ...[
+        const SizedBox(height: 10),
+        _settingLabel(
+          'Sound file path',
+          'Enter the full path to an existing audio file. Leave it empty to play the built-in sound.',
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          key: ValueKey('$keyName-sound'),
+          controller: _controllers['${keyName}Sound'],
+          decoration: const InputDecoration(hintText: 'Default sound'),
+          onChanged: (path) => _updateOptions(
+            (options) =>
+                update(options, event.copyWith(soundPath: path.trim())),
+          ),
+          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+        ),
+      ],
+    ],
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -227,6 +335,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _numberField(
                     keyName: 'pomodoro',
                     label: 'Focus duration',
+                    explanation:
+                        'Length of each regular focus session in minutes.',
                     suffix: 'minutes',
                     minimum: 1,
                     update: (value, minutes) =>
@@ -236,6 +346,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _numberField(
                     keyName: 'additional',
                     label: 'Additional focus phase',
+                    explanation:
+                        'Extra focus time after a regular Pomodoro. Set to 0 to skip this phase.',
                     suffix: 'minutes (0 = off)',
                     minimum: 0,
                     update: (value, minutes) =>
@@ -245,6 +357,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _numberField(
                     keyName: 'shortBreak',
                     label: 'Short break',
+                    explanation:
+                        'Length of a short break in minutes. Set to 0 to skip short breaks.',
                     suffix: 'minutes (0 = off)',
                     minimum: 0,
                     update: (value, minutes) =>
@@ -254,6 +368,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _numberField(
                     keyName: 'longBreak',
                     label: 'Long break',
+                    explanation:
+                        'Length of a long break in minutes. Set to 0 to skip long breaks.',
                     suffix: 'minutes (0 = off)',
                     minimum: 0,
                     update: (value, minutes) =>
@@ -263,6 +379,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _numberField(
                     keyName: 'interval',
                     label: 'Long break every',
+                    explanation:
+                        'Number of completed Pomodoros between long breaks. Set to 0 to use short breaks only.',
                     suffix: 'Pomodoros (0 = short breaks only)',
                     minimum: 0,
                     update: (value, count) =>
@@ -271,7 +389,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 12),
                   SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Start breaks automatically'),
+                    title: _settingLabel(
+                      'Start breaks automatically',
+                      'Begin the next break as soon as focus time ends. When off, the timer waits for you to start it.',
+                    ),
                     value: options.autoStartBreak,
                     onChanged: (enabled) => _updateOptions(
                       (value) => value.copyWith(autoStartBreak: enabled),
@@ -279,8 +400,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text(
+                    title: _settingLabel(
                       'Start focus automatically after a break',
+                      'Begin the next Pomodoro when a break ends. Turn this off to start manually and enable a reminder.',
                     ),
                     value: options.autoStartPomodoro,
                     onChanged: (enabled) => _updateOptions(
@@ -292,30 +414,103 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 28),
+          Text(
+            'Actions & reminders',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Actions apply to upcoming phases. Reminders repeat while the next focus session waits to start.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  _eventField(
+                    keyName: 'pomodoro',
+                    label: 'When focus or a break ends',
+                    explanation:
+                        'Choose a sound or lock the screen when a regular focus session or a break ends. An empty sound path uses the built-in sound.',
+                    event: options.endEventPomodoro,
+                    update: (value, event) =>
+                        value.copyWith(endEventPomodoro: event),
+                  ),
+                  const SizedBox(height: 18),
+                  _eventField(
+                    keyName: 'additional',
+                    label: 'When additional focus ends',
+                    explanation:
+                        'Choose what happens after the extra focus phase. This phase is skipped when its duration is 0.',
+                    event: options.endEventAdditionalPomodoro,
+                    update: (value, event) =>
+                        value.copyWith(endEventAdditionalPomodoro: event),
+                  ),
+                  const SizedBox(height: 18),
+                  _numberField(
+                    keyName: 'reminderInterval',
+                    label: 'Reminder after a break',
+                    explanation:
+                        'Minutes after a break ends before the reminder action runs. Used only when automatic focus start is off. Set to 0 to disable it.',
+                    suffix: 'minutes (0 = off)',
+                    minimum: 0,
+                    update: (value, minutes) =>
+                        value.copyWith(intervalReminderAfterBreak: minutes),
+                  ),
+                  const SizedBox(height: 18),
+                  _eventField(
+                    keyName: 'reminder',
+                    label: 'Reminder action',
+                    explanation:
+                        'Choose a sound or screen lock for the reminder after a break. An empty sound path uses the built-in sound.',
+                    event: options.eventReminderAfterBreak,
+                    update: (value, event) =>
+                        value.copyWith(eventReminderAfterBreak: event),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 28),
           Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
-              child: DropdownButtonFormField<AppThemePreference>(
-                key: const ValueKey('theme'),
-                initialValue: _settings.theme,
-                decoration: const InputDecoration(labelText: 'App theme'),
-                items: const [
-                  DropdownMenuItem(
-                    value: AppThemePreference.system,
-                    child: Text('System default'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _settingLabel(
+                    'App theme',
+                    'Choose a light or dark appearance, or follow your system setting.',
                   ),
-                  DropdownMenuItem(
-                    value: AppThemePreference.light,
-                    child: Text('Light'),
-                  ),
-                  DropdownMenuItem(
-                    value: AppThemePreference.dark,
-                    child: Text('Dark'),
+                  const SizedBox(height: 6),
+                  KeyedSubtree(
+                    key: ValueKey('theme-value-${_settings.theme.name}'),
+                    child: DropdownButtonFormField<AppThemePreference>(
+                      key: const ValueKey('theme'),
+                      initialValue: _settings.theme,
+                      decoration: const InputDecoration(),
+                      items: const [
+                        DropdownMenuItem(
+                          value: AppThemePreference.system,
+                          child: Text('System default'),
+                        ),
+                        DropdownMenuItem(
+                          value: AppThemePreference.light,
+                          child: Text('Light'),
+                        ),
+                        DropdownMenuItem(
+                          value: AppThemePreference.dark,
+                          child: Text('Dark'),
+                        ),
+                      ],
+                      onChanged: _updateTheme,
+                    ),
                   ),
                 ],
-                onChanged: _updateTheme,
               ),
             ),
           ),

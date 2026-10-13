@@ -256,12 +256,65 @@ Future<TimerServiceConnection> _createTimerService() async {
 
 Future<TimerOptions> _loadRustTimerSettings() async {
   await rustBridgeInitializer.ensureInitialized();
-  return TimerOptions.decode(await rust_api.loadTimerSettings());
+  final timerSettings = TimerOptions.decode(await rust_api.loadTimerSettings());
+  final file = _rustOptionsFile();
+  if (!await file.exists()) return timerSettings;
+  final saved = jsonDecode(await file.readAsString());
+  if (saved is! Map<String, dynamic>) {
+    throw const FormatException('Rust timer settings must be a JSON object.');
+  }
+  final options = timerSettings.copyWith(
+    endEventPomodoro: saved.containsKey('endEventPomodoro')
+        ? TimerEndEvent.decode(saved['endEventPomodoro'], 'endEventPomodoro')
+        : null,
+    endEventAdditionalPomodoro: saved.containsKey('endEventAdditionalPomodoro')
+        ? TimerEndEvent.decode(
+            saved['endEventAdditionalPomodoro'],
+            'endEventAdditionalPomodoro',
+          )
+        : null,
+    intervalReminderAfterBreak: saved['intervalReminderAfterBreak'] as int?,
+    eventReminderAfterBreak: saved.containsKey('eventReminderAfterBreak')
+        ? TimerEndEvent.decode(
+            saved['eventReminderAfterBreak'],
+            'eventReminderAfterBreak',
+          )
+        : null,
+  );
+  options.validate();
+  return options;
 }
 
 Future<void> _saveRustTimerSettings(TimerOptions options) async {
   await rustBridgeInitializer.ensureInitialized();
+  await _validateSoundPaths(options);
   await rust_api.saveTimerSettings(settingsJson: jsonEncode(options.toJson()));
+  final file = _rustOptionsFile();
+  final saved = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+  saved.addAll(options.toJson());
+  await file.writeAsString(
+    const JsonEncoder.withIndent('  ').convert(saved),
+    flush: true,
+  );
+}
+
+File _rustOptionsFile() => File(
+  '${File(Platform.resolvedExecutable).parent.path}'
+  '${Platform.pathSeparator}pomodoro_options.json',
+);
+
+Future<void> _validateSoundPaths(TimerOptions options) async {
+  for (final event in [
+    options.endEventPomodoro,
+    options.endEventAdditionalPomodoro,
+    options.eventReminderAfterBreak,
+  ]) {
+    if (event.kind == TimerEventKind.sound &&
+        event.soundPath.isNotEmpty &&
+        !await File(event.soundPath).exists()) {
+      throw FormatException('Sound file does not exist: ${event.soundPath}');
+    }
+  }
 }
 
 @visibleForTesting
