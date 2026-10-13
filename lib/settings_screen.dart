@@ -25,7 +25,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   static const _maxMinutes = 2147483647;
-  static const _minMinutes = 0;
 
   late AppSettings _settings;
   late final Map<String, TextEditingController> _controllers;
@@ -264,8 +263,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _numberField(
                     keyName: 'interval',
                     label: 'Long break every',
-                    suffix: 'Pomodoros (0 or less = short breaks only)',
-                    minimum: _minMinutes,
+                    suffix: 'Pomodoros (0 = short breaks only)',
+                    minimum: 0,
                     update: (value, count) =>
                         value.copyWith(intervalLongBreak: count),
                   ),

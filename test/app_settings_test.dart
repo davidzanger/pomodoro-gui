@@ -47,7 +47,7 @@ void main() {
       additionalDuration: 0,
       durationShortBreak: 4,
       durationLongBreak: 12,
-      intervalLongBreak: -1,
+      intervalLongBreak: 0,
       autoStartBreak: false,
       autoStartPomodoro: true,
     );
@@ -58,7 +58,7 @@ void main() {
     expect(decoded.additionalDuration, 0);
     expect(decoded.durationShortBreak, 4);
     expect(decoded.durationLongBreak, 12);
-    expect(decoded.intervalLongBreak, -1);
+    expect(decoded.intervalLongBreak, 0);
     expect(decoded.autoStartBreak, isFalse);
     expect(decoded.autoStartPomodoro, isTrue);
     final json = jsonDecode(options.encode()) as Map<String, dynamic>;
@@ -66,6 +66,14 @@ void main() {
   });
 
   test('rejects invalid timer settings and malformed bridge responses', () {
+    expect(
+      () => const TimerOptions(intervalLongBreak: 0).validate(),
+      returnsNormally,
+    );
+    expect(
+      () => const TimerOptions(intervalLongBreak: -1).validate(),
+      throwsFormatException,
+    );
     expect(
       () => TimerOptions.decode(
         '{"durationPomodoro":0,"additionalDuration":0,'

@@ -3,6 +3,9 @@ ios
 linux
 macos
 windows
+!/windows/
+/windows/*
+!/windows/CMakeLists.txt
 web
 # Miscellaneous
 *.class

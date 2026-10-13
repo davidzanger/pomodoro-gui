@@ -6,8 +6,8 @@ import 'package:flutter/foundation.dart';
 
 import 'app_settings.dart';
 import 'app_logging.dart';
+import 'rust_bridge_initializer.dart';
 import 'src/rust/api/simple.dart' as rust_api;
-import 'src/rust/frb_generated.dart';
 import 'service_protocol.dart';
 
 abstract class TimerController extends ChangeNotifier {
@@ -250,17 +250,17 @@ class PomodoroService extends TimerController {
 }
 
 Future<TimerServiceConnection> _createTimerService() async {
-  await RustLib.init();
+  await rustBridgeInitializer.ensureInitialized();
   return RustTimerServiceConnection(await rust_api.createTimerService());
 }
 
 Future<TimerOptions> _loadRustTimerSettings() async {
-  await RustLib.init();
+  await rustBridgeInitializer.ensureInitialized();
   return TimerOptions.decode(await rust_api.loadTimerSettings());
 }
 
 Future<void> _saveRustTimerSettings(TimerOptions options) async {
-  await RustLib.init();
+  await rustBridgeInitializer.ensureInitialized();
   await rust_api.saveTimerSettings(settingsJson: jsonEncode(options.toJson()));
 }
 

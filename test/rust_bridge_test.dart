@@ -3,13 +3,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pomodoro_gui/pomodoro_service.dart';
+import 'package:pomodoro_gui/rust_bridge_initializer.dart';
 import 'package:pomodoro_gui/service_protocol.dart';
 import 'package:pomodoro_gui/src/rust/api/simple.dart' as rust_api;
 import 'package:pomodoro_gui/src/rust/frb_generated.dart';
 
 void main() {
   test('streams timer events from the in-process Rust service', () async {
-    await RustLib.init();
+    await rustBridgeInitializer.ensureInitialized();
     final settings =
         jsonDecode(await rust_api.loadTimerSettings()) as Map<String, dynamic>;
     expect(settings.containsKey('durationPomodoro'), isTrue);
@@ -47,6 +49,29 @@ void main() {
         await service.sendCommand(command: rust_api.TimerCommand.quit);
       }
       await events.cancel();
+    }
+  }, skip: !Platform.isWindows);
+
+  test('loads settings, connects, and saves through one Rust bridge', () async {
+    final service = PomodoroService();
+    final ready = Completer<void>();
+    service.addListener(() {
+      if (service.isConnected && !ready.isCompleted) ready.complete();
+    });
+
+    try {
+      final settings = await service.loadSettings();
+      expect(settings.durationPomodoro, greaterThan(0));
+
+      await service.connect();
+      await ready.future.timeout(const Duration(seconds: 10));
+      expect(service.errorMessage, isNull);
+
+      await service.updateSettings(settings);
+      expect(service.errorMessage, isNull);
+      expect(RustLib.instance.initialized, isTrue);
+    } finally {
+      service.dispose();
     }
   }, skip: !Platform.isWindows);
 }

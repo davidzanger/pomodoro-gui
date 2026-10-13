@@ -10,7 +10,7 @@ Windows desktop app for the [Locking Pomodoro Timer](https://github.com/davidzan
 - The Rust repository checked out at `..\pomodoro` relative to this repository.
 - `flutter_rust_bridge_codegen` 2.13.0 for regenerating the bindings.
 
-The generated Windows runner is intentionally not versioned. On a fresh clone, create it once with the Flutter SDK installed:
+Most generated Windows runner files are intentionally not versioned. The project-level `windows/CMakeLists.txt` is versioned because it installs the Rust Native Asset beside the executable. On a fresh clone, create the remaining runner files once with the Flutter SDK installed:
 
 ```powershell
 flutter create --platforms=windows --no-pub .
