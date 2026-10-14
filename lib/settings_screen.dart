@@ -303,225 +303,240 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-        children: [
-          if (error != null) ...[
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: colors.errorContainer,
-                borderRadius: BorderRadius.circular(8),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 820),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 48),
+            children: [
+              Text(
+                'Make the rhythm yours.',
+                style: Theme.of(context).textTheme.headlineMedium,
               ),
-              child: Text(
-                error,
-                style: TextStyle(color: colors.onErrorContainer),
+              const SizedBox(height: 10),
+              Text(
+                'Set your focus time, breaks, and what happens when each phase ends.',
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
-            ),
-            const SizedBox(height: 16),
-          ],
-          Text('Timer', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 6),
-          Text(
-            'Changes save immediately and apply to the next timer phase.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  _numberField(
-                    keyName: 'pomodoro',
-                    label: 'Focus duration',
-                    explanation:
-                        'Length of each regular focus session in minutes.',
-                    suffix: 'minutes',
-                    minimum: 1,
-                    update: (value, minutes) =>
-                        value.copyWith(durationPomodoro: minutes),
+              const SizedBox(height: 32),
+              if (error != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: colors.errorContainer,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  const SizedBox(height: 12),
-                  _numberField(
-                    keyName: 'additional',
-                    label: 'Additional focus phase',
-                    explanation:
-                        'Extra focus time after a regular Pomodoro. Set to 0 to skip this phase.',
-                    suffix: 'minutes (0 = off)',
-                    minimum: 0,
-                    update: (value, minutes) =>
-                        value.copyWith(additionalDuration: minutes),
+                  child: Text(
+                    error,
+                    style: TextStyle(color: colors.onErrorContainer),
                   ),
-                  const SizedBox(height: 12),
-                  _numberField(
-                    keyName: 'shortBreak',
-                    label: 'Short break',
-                    explanation:
-                        'Length of a short break in minutes. Set to 0 to skip short breaks.',
-                    suffix: 'minutes (0 = off)',
-                    minimum: 0,
-                    update: (value, minutes) =>
-                        value.copyWith(durationShortBreak: minutes),
-                  ),
-                  const SizedBox(height: 12),
-                  _numberField(
-                    keyName: 'longBreak',
-                    label: 'Long break',
-                    explanation:
-                        'Length of a long break in minutes. Set to 0 to skip long breaks.',
-                    suffix: 'minutes (0 = off)',
-                    minimum: 0,
-                    update: (value, minutes) =>
-                        value.copyWith(durationLongBreak: minutes),
-                  ),
-                  const SizedBox(height: 12),
-                  _numberField(
-                    keyName: 'interval',
-                    label: 'Long break every',
-                    explanation:
-                        'Number of completed Pomodoros between long breaks. Set to 0 to use short breaks only.',
-                    suffix: 'Pomodoros (0 = short breaks only)',
-                    minimum: 0,
-                    update: (value, count) =>
-                        value.copyWith(intervalLongBreak: count),
-                  ),
-                  const SizedBox(height: 12),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: _settingLabel(
-                      'Start breaks automatically',
-                      'Begin the next break as soon as focus time ends. When off, the timer waits for you to start it.',
-                    ),
-                    value: options.autoStartBreak,
-                    onChanged: (enabled) => _updateOptions(
-                      (value) => value.copyWith(autoStartBreak: enabled),
-                    ),
-                  ),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: _settingLabel(
-                      'Start focus automatically after a break',
-                      'Begin the next Pomodoro when a break ends. Turn this off to start manually and enable a reminder.',
-                    ),
-                    value: options.autoStartPomodoro,
-                    onChanged: (enabled) => _updateOptions(
-                      (value) => value.copyWith(autoStartPomodoro: enabled),
-                    ),
-                  ),
-                ],
+                ),
+                const SizedBox(height: 16),
+              ],
+              Text('Timer', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 6),
+              Text(
+                'Changes save immediately and apply to the next timer phase.',
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
-            ),
-          ),
-          const SizedBox(height: 28),
-          Text(
-            'Actions & reminders',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Actions apply to upcoming phases. Reminders repeat while the next focus session waits to start.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  _eventField(
-                    keyName: 'pomodoro',
-                    label: 'When focus or a break ends',
-                    explanation:
-                        'Choose a sound or lock the screen when a regular focus session or a break ends. An empty sound path uses the built-in sound.',
-                    event: options.endEventPomodoro,
-                    update: (value, event) =>
-                        value.copyWith(endEventPomodoro: event),
-                  ),
-                  const SizedBox(height: 18),
-                  _eventField(
-                    keyName: 'additional',
-                    label: 'When additional focus ends',
-                    explanation:
-                        'Choose what happens after the extra focus phase. This phase is skipped when its duration is 0.',
-                    event: options.endEventAdditionalPomodoro,
-                    update: (value, event) =>
-                        value.copyWith(endEventAdditionalPomodoro: event),
-                  ),
-                  const SizedBox(height: 18),
-                  _numberField(
-                    keyName: 'reminderInterval',
-                    label: 'Reminder after a break',
-                    explanation:
-                        'Minutes after a break ends before the reminder action runs. Used only when automatic focus start is off. Set to 0 to disable it.',
-                    suffix: 'minutes (0 = off)',
-                    minimum: 0,
-                    update: (value, minutes) =>
-                        value.copyWith(intervalReminderAfterBreak: minutes),
-                  ),
-                  const SizedBox(height: 18),
-                  _eventField(
-                    keyName: 'reminder',
-                    label: 'Reminder action',
-                    explanation:
-                        'Choose a sound or screen lock for the reminder after a break. An empty sound path uses the built-in sound.',
-                    event: options.eventReminderAfterBreak,
-                    update: (value, event) =>
-                        value.copyWith(eventReminderAfterBreak: event),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 28),
-          Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _settingLabel(
-                    'App theme',
-                    'Choose a light or dark appearance, or follow your system setting.',
-                  ),
-                  const SizedBox(height: 6),
-                  KeyedSubtree(
-                    key: ValueKey('theme-value-${_settings.theme.name}'),
-                    child: DropdownButtonFormField<AppThemePreference>(
-                      key: const ValueKey('theme'),
-                      initialValue: _settings.theme,
-                      decoration: const InputDecoration(),
-                      items: const [
-                        DropdownMenuItem(
-                          value: AppThemePreference.system,
-                          child: Text('System default'),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      _numberField(
+                        keyName: 'pomodoro',
+                        label: 'Focus duration',
+                        explanation:
+                            'Length of each regular focus session in minutes.',
+                        suffix: 'minutes',
+                        minimum: 1,
+                        update: (value, minutes) =>
+                            value.copyWith(durationPomodoro: minutes),
+                      ),
+                      const SizedBox(height: 12),
+                      _numberField(
+                        keyName: 'additional',
+                        label: 'Additional focus phase',
+                        explanation:
+                            'Extra focus time after a regular Pomodoro. Set to 0 to skip this phase.',
+                        suffix: 'minutes (0 = off)',
+                        minimum: 0,
+                        update: (value, minutes) =>
+                            value.copyWith(additionalDuration: minutes),
+                      ),
+                      const SizedBox(height: 12),
+                      _numberField(
+                        keyName: 'shortBreak',
+                        label: 'Short break',
+                        explanation:
+                            'Length of a short break in minutes. Set to 0 to skip short breaks.',
+                        suffix: 'minutes (0 = off)',
+                        minimum: 0,
+                        update: (value, minutes) =>
+                            value.copyWith(durationShortBreak: minutes),
+                      ),
+                      const SizedBox(height: 12),
+                      _numberField(
+                        keyName: 'longBreak',
+                        label: 'Long break',
+                        explanation:
+                            'Length of a long break in minutes. Set to 0 to skip long breaks.',
+                        suffix: 'minutes (0 = off)',
+                        minimum: 0,
+                        update: (value, minutes) =>
+                            value.copyWith(durationLongBreak: minutes),
+                      ),
+                      const SizedBox(height: 12),
+                      _numberField(
+                        keyName: 'interval',
+                        label: 'Long break every',
+                        explanation:
+                            'Number of completed Pomodoros between long breaks. Set to 0 to use short breaks only.',
+                        suffix: 'Pomodoros (0 = short breaks only)',
+                        minimum: 0,
+                        update: (value, count) =>
+                            value.copyWith(intervalLongBreak: count),
+                      ),
+                      const SizedBox(height: 12),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: _settingLabel(
+                          'Start breaks automatically',
+                          'Begin the next break as soon as focus time ends. When off, the timer waits for you to start it.',
                         ),
-                        DropdownMenuItem(
-                          value: AppThemePreference.light,
-                          child: Text('Light'),
+                        value: options.autoStartBreak,
+                        onChanged: (enabled) => _updateOptions(
+                          (value) => value.copyWith(autoStartBreak: enabled),
                         ),
-                        DropdownMenuItem(
-                          value: AppThemePreference.dark,
-                          child: Text('Dark'),
+                      ),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: _settingLabel(
+                          'Start focus automatically after a break',
+                          'Begin the next Pomodoro when a break ends. Turn this off to start manually and enable a reminder.',
                         ),
-                      ],
-                      onChanged: _updateTheme,
-                    ),
+                        value: options.autoStartPomodoro,
+                        onChanged: (enabled) => _updateOptions(
+                          (value) => value.copyWith(autoStartPomodoro: enabled),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(height: 28),
+              Text(
+                'Actions & reminders',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Actions apply to upcoming phases. Reminders repeat while the next focus session waits to start.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      _eventField(
+                        keyName: 'pomodoro',
+                        label: 'When focus or a break ends',
+                        explanation:
+                            'Choose a sound or lock the screen when a regular focus session or a break ends. An empty sound path uses the built-in sound.',
+                        event: options.endEventPomodoro,
+                        update: (value, event) =>
+                            value.copyWith(endEventPomodoro: event),
+                      ),
+                      const SizedBox(height: 18),
+                      _eventField(
+                        keyName: 'additional',
+                        label: 'When additional focus ends',
+                        explanation:
+                            'Choose what happens after the extra focus phase. This phase is skipped when its duration is 0.',
+                        event: options.endEventAdditionalPomodoro,
+                        update: (value, event) =>
+                            value.copyWith(endEventAdditionalPomodoro: event),
+                      ),
+                      const SizedBox(height: 18),
+                      _numberField(
+                        keyName: 'reminderInterval',
+                        label: 'Reminder after a break',
+                        explanation:
+                            'Minutes after a break ends before the reminder action runs. Used only when automatic focus start is off. Set to 0 to disable it.',
+                        suffix: 'minutes (0 = off)',
+                        minimum: 0,
+                        update: (value, minutes) =>
+                            value.copyWith(intervalReminderAfterBreak: minutes),
+                      ),
+                      const SizedBox(height: 18),
+                      _eventField(
+                        keyName: 'reminder',
+                        label: 'Reminder action',
+                        explanation:
+                            'Choose a sound or screen lock for the reminder after a break. An empty sound path uses the built-in sound.',
+                        event: options.eventReminderAfterBreak,
+                        update: (value, event) =>
+                            value.copyWith(eventReminderAfterBreak: event),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 28),
+              Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _settingLabel(
+                        'App theme',
+                        'Choose a light or dark appearance, or follow your system setting.',
+                      ),
+                      const SizedBox(height: 6),
+                      KeyedSubtree(
+                        key: ValueKey('theme-value-${_settings.theme.name}'),
+                        child: DropdownButtonFormField<AppThemePreference>(
+                          key: const ValueKey('theme'),
+                          initialValue: _settings.theme,
+                          decoration: const InputDecoration(),
+                          items: const [
+                            DropdownMenuItem(
+                              value: AppThemePreference.system,
+                              child: Text('System default'),
+                            ),
+                            DropdownMenuItem(
+                              value: AppThemePreference.light,
+                              child: Text('Light'),
+                            ),
+                            DropdownMenuItem(
+                              value: AppThemePreference.dark,
+                              child: Text('Dark'),
+                            ),
+                          ],
+                          onChanged: _updateTheme,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_saveError != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Could not save changes. Check the values and timer connection.',
+                  style: TextStyle(color: colors.error),
+                ),
+              ],
+            ],
           ),
-          if (_saveError != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Could not save changes. Check the values and timer connection.',
-              style: TextStyle(color: colors.error),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

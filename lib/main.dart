@@ -124,32 +124,71 @@ ThemeData _themeData(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final colorScheme =
       ColorScheme.fromSeed(
-        seedColor: const Color(0xFF245B50),
+        seedColor: const Color(0xFF315FD4),
         brightness: brightness,
       ).copyWith(
-        primary: dark ? const Color(0xFF9CC8B9) : const Color(0xFF245B50),
-        secondary: const Color(0xFFC2E66B),
-        error: const Color(0xFFB7503E),
+        primary: dark ? const Color(0xFF9BB7FF) : const Color(0xFF315FD4),
+        onPrimary: dark ? const Color(0xFF102A66) : Colors.white,
+        secondary: dark ? const Color(0xFFF5A77B) : const Color(0xFFCA633D),
+        onSecondary: dark ? const Color(0xFF392014) : Colors.white,
+        surface: dark ? const Color(0xFF172331) : Colors.white,
+        onSurface: dark ? const Color(0xFFE7EDF6) : const Color(0xFF18283A),
+        onSurfaceVariant: dark
+            ? const Color(0xFFADBDCF)
+            : const Color(0xFF586A7D),
+        error: dark ? const Color(0xFFFFA99B) : const Color(0xFFB34337),
       );
   return ThemeData(
     useMaterial3: true,
     scaffoldBackgroundColor: dark
-        ? const Color(0xFF17211F)
-        : const Color(0xFFF1F4EF),
+        ? const Color(0xFF101B28)
+        : const Color(0xFFEAF0F5),
     colorScheme: colorScheme,
+    fontFamily: 'Segoe UI',
+    appBarTheme: AppBarTheme(
+      backgroundColor: dark ? const Color(0xFF101B28) : const Color(0xFFEAF0F5),
+      foregroundColor: colorScheme.onSurface,
+      elevation: 0,
+    ),
+    cardTheme: CardThemeData(
+      color: colorScheme.surface,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: dark ? const Color(0xFF202F40) : const Color(0xFFF3F7FA),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: colorScheme.outlineVariant),
+      ),
+    ),
     textTheme: TextTheme(
       displayLarge: TextStyle(
-        fontFamily: 'Georgia',
+        fontFamily: 'Segoe UI',
         fontSize: 76,
-        fontWeight: FontWeight.w400,
+        fontWeight: FontWeight.w300,
+        letterSpacing: -4,
         color: colorScheme.onSurface,
       ),
       headlineMedium: TextStyle(
-        fontFamily: 'Georgia',
-        fontSize: 30,
+        fontFamily: 'Segoe UI',
+        fontSize: 32,
+        fontWeight: FontWeight.w600,
+        letterSpacing: -1,
         color: colorScheme.onSurface,
       ),
-      bodyMedium: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant),
+      bodyMedium: TextStyle(
+        fontSize: 14,
+        height: 1.5,
+        color: colorScheme.onSurfaceVariant,
+      ),
     ),
   );
 }
@@ -183,8 +222,8 @@ class PomodoroHome extends StatelessWidget {
                 final compact = constraints.maxWidth < 760;
                 return Padding(
                   padding: EdgeInsets.symmetric(
-                    horizontal: compact ? 24 : 64,
-                    vertical: compact ? 24 : 40,
+                    horizontal: compact ? 20 : 48,
+                    vertical: compact ? 20 : 32,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -212,7 +251,7 @@ class PomodoroHome extends StatelessWidget {
                           );
                         },
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
                       if (settingsError != null)
                         _ConnectionError(
                           message: 'Could not load settings: $settingsError',
@@ -259,15 +298,15 @@ class _TopBar extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 38,
-          height: 38,
+          width: 42,
+          height: 42,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.secondary,
-            borderRadius: BorderRadius.circular(8),
+            color: Theme.of(context).colorScheme.primary,
+            borderRadius: BorderRadius.circular(13),
           ),
           child: Icon(
-            Icons.hourglass_bottom,
-            color: Theme.of(context).colorScheme.onSecondary,
+            Icons.timelapse_rounded,
+            color: Theme.of(context).colorScheme.onPrimary,
           ),
         ),
         const SizedBox(width: 12),
@@ -275,28 +314,31 @@ class _TopBar extends StatelessWidget {
           'POMODORO',
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurface,
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.4,
           ),
         ),
         const Spacer(),
-        Icon(
-          Icons.circle,
-          size: 9,
-          color: connected
-              ? const Color(0xFF4F8B52)
-              : Theme.of(context).colorScheme.error,
-        ),
-        const SizedBox(width: 8),
-        Text(
-          connected ? 'ENGINE CONNECTED' : 'CONNECTING TO RUST',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.6,
+        if (MediaQuery.sizeOf(context).width >= 600) ...[
+          Icon(
+            Icons.circle,
+            size: 8,
+            color: connected
+                ? const Color(0xFF4F8B52)
+                : Theme.of(context).colorScheme.error,
           ),
-        ),
+          const SizedBox(width: 8),
+          Text(
+            connected ? 'ENGINE CONNECTED' : 'CONNECTING TO RUST',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ],
         const SizedBox(width: 8),
         IconButton(
           tooltip: 'Settings',
@@ -326,8 +368,8 @@ class _WideLayout extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 1040),
         child: Row(
           children: [
-            Expanded(child: _TimerDial(snapshot: snapshot, diameter: 340)),
-            const SizedBox(width: 64),
+            SizedBox(width: 260, child: _TimerDial(snapshot: snapshot, diameter: 250)),
+            const SizedBox(width: 28),
             Expanded(
               child: _SessionPanel(snapshot: snapshot, controller: controller),
             ),
@@ -350,9 +392,9 @@ class _CompactLayout extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           _TimerDial(snapshot: snapshot, diameter: 260),
-          const SizedBox(height: 28),
+          const SizedBox(height: 36),
           _SessionPanel(snapshot: snapshot, controller: controller),
         ],
       ),
@@ -378,11 +420,20 @@ class _TimerDial extends StatelessWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
+            Container(
+              width: diameter - 28,
+              height: diameter - 28,
+              decoration: BoxDecoration(
+                color: colors.surface,
+                shape: BoxShape.circle,
+                border: Border.all(color: colors.outlineVariant),
+              ),
+            ),
             SizedBox.square(
               dimension: diameter,
               child: CircularProgressIndicator(
                 value: snapshot.progress,
-                strokeWidth: 6,
+                strokeWidth: 8,
                 strokeCap: StrokeCap.round,
                 backgroundColor: colors.surfaceContainerHighest,
                 color: colors.primary,
@@ -392,15 +443,14 @@ class _TimerDial extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  snapshot.phase == null ? 'READY WHEN YOU ARE' : 'TIME LEFT',
+                  snapshot.phase == null ? 'Ready when you are' : 'Time left',
                   style: TextStyle(
                     color: colors.onSurfaceVariant,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
@@ -410,14 +460,14 @@ class _TimerDial extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 8),
                 Text(
                   snapshot.status.label.toUpperCase(),
                   style: TextStyle(
-                    color: colors.onSurfaceVariant,
+                    color: colors.secondary,
                     fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
                   ),
                 ),
               ],
@@ -450,23 +500,22 @@ class _SessionPanel extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'FOCUS SESSION',
+          'Your session',
           style: TextStyle(
-            color: colors.onSurfaceVariant,
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.4,
+            color: colors.secondary,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Text(title, style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 10),
         Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
-        const SizedBox(height: 32),
+        const SizedBox(height: 28),
         _Controls(snapshot: snapshot, controller: controller),
-        const SizedBox(height: 18),
+        const SizedBox(height: 24),
         _NextSession(label: snapshot.nextSessionLabel),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         Text(
           'Pomodoro ${snapshot.completedPomodoros + 1}',
           style: TextStyle(
@@ -489,14 +538,15 @@ class _NextSession extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(7),
+        color: colors.surface,
+        border: Border.all(color: colors.outlineVariant),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
-          Icon(Icons.skip_next, color: colors.primary, size: 18),
+          Icon(Icons.arrow_forward_rounded, color: colors.primary, size: 18),
           const SizedBox(width: 9),
           Text(
             'UP NEXT',
@@ -663,9 +713,9 @@ class _ControlsState extends State<_Controls> {
           style: FilledButton.styleFrom(
             backgroundColor: colors.primary,
             foregroundColor: colors.onPrimary,
-            minimumSize: const Size(184, 52),
+            minimumSize: const Size(184, 54),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(7),
+              borderRadius: BorderRadius.circular(13),
             ),
           ),
         ),
@@ -676,11 +726,11 @@ class _ControlsState extends State<_Controls> {
                 controller.sendCommand(paused ? 'resume' : 'pause'),
             icon: Icon(paused ? Icons.play_arrow : Icons.pause),
             style: IconButton.styleFrom(
-              foregroundColor: colors.onSecondary,
-              backgroundColor: colors.secondary,
+              foregroundColor: colors.onPrimary,
+              backgroundColor: colors.primary,
               fixedSize: const Size(52, 52),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(7),
+                borderRadius: BorderRadius.circular(13),
               ),
             ),
           ),
@@ -692,7 +742,7 @@ class _ControlsState extends State<_Controls> {
             style: IconButton.styleFrom(
               fixedSize: const Size(52, 52),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(7),
+                borderRadius: BorderRadius.circular(13),
               ),
             ),
           ),
@@ -709,7 +759,7 @@ class _ControlsState extends State<_Controls> {
               foregroundColor: colors.error,
               fixedSize: const Size(52, 52),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(7),
+                borderRadius: BorderRadius.circular(13),
               ),
             ),
           ),
@@ -756,28 +806,13 @@ class _Footer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        Text(
-          'LOCKING POMODORO TIMER',
-          style: TextStyle(
-            color: colors.onSurfaceVariant,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1,
-          ),
-        ),
-        const Spacer(),
-        Text(
-          'DESKTOP',
-          style: TextStyle(
-            color: colors.onSurfaceVariant,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1,
-          ),
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 18),
+      child: Text(
+        'Make room for the work that matters.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+      ),
     );
   }
 }
