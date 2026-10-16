@@ -835,12 +835,10 @@ class _ControlsState extends State<_Controls> {
               ? () => controller.sendCommand('skip', seconds: 60)
               : null,
           icon: Text(
-            '1 MIN',
+            '1m',
             style: TextStyle(
               color: colors.secondary,
-              fontSize: 11,
               fontWeight: FontWeight.w800,
-              letterSpacing: 0.4,
             ),
           ),
           style: controlStyle,
