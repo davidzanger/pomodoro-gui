@@ -802,12 +802,18 @@ class _ControlsState extends State<_Controls> {
     final canStart =
         connected && (snapshot.status == TimerStatus.idle || waiting);
     final canControl = connected && (running || paused);
+    final controlStyle = IconButton.styleFrom(
+      foregroundColor: colors.secondary,
+      side: BorderSide(color: colors.secondary),
+      fixedSize: const Size(52, 52),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+    );
 
     return Wrap(
       spacing: 10,
       runSpacing: 10,
       children: [
-        IconButton.filledTonal(
+        IconButton.outlined(
           tooltip: canStart
               ? waiting
                     ? 'Start next phase'
@@ -821,14 +827,7 @@ class _ControlsState extends State<_Controls> {
               ? () => controller.sendCommand(paused ? 'resume' : 'pause')
               : null,
           icon: Icon(canControl && running ? Icons.pause : Icons.play_arrow),
-          style: IconButton.styleFrom(
-            foregroundColor: colors.onPrimary,
-            backgroundColor: colors.primary,
-            fixedSize: const Size(52, 52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(13),
-            ),
-          ),
+          style: controlStyle,
         ),
         IconButton.outlined(
           tooltip: 'Skip ahead one minute',
@@ -836,27 +835,13 @@ class _ControlsState extends State<_Controls> {
               ? () => controller.sendCommand('skip', seconds: 60)
               : null,
           icon: const Text('1m', style: TextStyle(fontWeight: FontWeight.w800)),
-          style: IconButton.styleFrom(
-            foregroundColor: colors.onSurfaceVariant,
-            side: BorderSide(color: colors.outline),
-            fixedSize: const Size(52, 52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(13),
-            ),
-          ),
+          style: controlStyle,
         ),
         IconButton.outlined(
           tooltip: 'Skip to next session',
           onPressed: canControl ? _queueSkipToNextSession : null,
           icon: const Icon(Icons.skip_next),
-          style: IconButton.styleFrom(
-            foregroundColor: colors.secondary,
-            side: BorderSide(color: colors.secondary),
-            fixedSize: const Size(52, 52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(13),
-            ),
-          ),
+          style: controlStyle,
         ),
       ],
     );
