@@ -583,4 +583,35 @@ void main() {
       }
     },
   );
+
+  testWidgets('uses the C1 palette and shows a progress sequence', (
+    tester,
+  ) async {
+    final controller = FakeTimerController(
+      initialSnapshot: const TimerSnapshot(
+        status: TimerStatus.running,
+        phase: TimerPhase.pomodoro,
+        elapsedSeconds: 300,
+        durationSeconds: 1500,
+        completedPomodoros: 0,
+      ),
+    );
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
+
+    final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    expect(app.theme!.colorScheme.primary, const Color(0xFF304137));
+    expect(app.theme!.colorScheme.secondary, const Color(0xFFAD6547));
+    expect(find.text('YOUR RHYTHM'), findsOneWidget);
+    expect(find.text('Fokus 01'), findsOneWidget);
+    expect(find.text('Fokus 1'), findsOneWidget);
+    expect(find.byTooltip('Pause timer'), findsOneWidget);
+    expect(find.byTooltip('Skip ahead one minute'), findsOneWidget);
+    expect(find.byTooltip('Skip to next session'), findsOneWidget);
+
+    final progress = tester.widget<CircularProgressIndicator>(
+      find.byType(CircularProgressIndicator),
+    );
+    expect(progress.color, const Color(0xFFAD6547));
+    expect(progress.value, closeTo(0.2, 0.001));
+  });
 }

@@ -124,49 +124,54 @@ ThemeData _themeData(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final colorScheme =
       ColorScheme.fromSeed(
-        seedColor: const Color(0xFF315FD4),
+        seedColor: const Color(0xFF304137),
         brightness: brightness,
       ).copyWith(
-        primary: dark ? const Color(0xFF9BB7FF) : const Color(0xFF315FD4),
-        onPrimary: dark ? const Color(0xFF102A66) : Colors.white,
-        secondary: dark ? const Color(0xFFF5A77B) : const Color(0xFFCA633D),
-        onSecondary: dark ? const Color(0xFF392014) : Colors.white,
-        surface: dark ? const Color(0xFF172331) : Colors.white,
-        onSurface: dark ? const Color(0xFFE7EDF6) : const Color(0xFF18283A),
+        primary: dark ? const Color(0xFFD1B199) : const Color(0xFF304137),
+        onPrimary: dark ? const Color(0xFF1B241E) : Colors.white,
+        secondary: dark ? const Color(0xFFF0A77D) : const Color(0xFFAD6547),
+        onSecondary: dark ? const Color(0xFF3A2118) : Colors.white,
+        surface: dark ? const Color(0xFF222A24) : const Color(0xFFF5F3ED),
+        onSurface: dark ? const Color(0xFFF0EEE8) : const Color(0xFF292D28),
         onSurfaceVariant: dark
-            ? const Color(0xFFADBDCF)
-            : const Color(0xFF586A7D),
-        error: dark ? const Color(0xFFFFA99B) : const Color(0xFFB34337),
+            ? const Color(0xFFB9C2B8)
+            : const Color(0xFF777C72),
+        error: dark ? const Color(0xFFFFA99B) : const Color(0xFF9B4B3D),
       );
   return ThemeData(
     useMaterial3: true,
     scaffoldBackgroundColor: dark
-        ? const Color(0xFF101B28)
-        : const Color(0xFFEAF0F5),
+        ? const Color(0xFF151B17)
+        : const Color(0xFFECECE5),
     colorScheme: colorScheme,
     fontFamily: 'Segoe UI',
     appBarTheme: AppBarTheme(
-      backgroundColor: dark ? const Color(0xFF101B28) : const Color(0xFFEAF0F5),
+      backgroundColor: dark ? const Color(0xFF151B17) : const Color(0xFFECECE5),
       foregroundColor: colorScheme.onSurface,
       elevation: 0,
+      centerTitle: false,
     ),
     cardTheme: CardThemeData(
       color: colorScheme.surface,
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(color: colorScheme.outlineVariant),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: dark ? const Color(0xFF202F40) : const Color(0xFFF3F7FA),
+      fillColor: dark ? const Color(0xFF252D27) : const Color(0xFFF5F3ED),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(7)),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(7),
         borderSide: BorderSide(color: colorScheme.outlineVariant),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(7),
+        borderSide: BorderSide(color: colorScheme.secondary, width: 2),
       ),
     ),
     textTheme: TextTheme(
@@ -219,7 +224,7 @@ class PomodoroHome extends StatelessWidget {
           body: SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final compact = constraints.maxWidth < 760;
+                final compact = constraints.maxWidth < 1000;
                 return Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: compact ? 20 : 48,
@@ -363,17 +368,32 @@ class _WideLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1040),
-        child: Row(
-          children: [
-            SizedBox(width: 260, child: _TimerDial(snapshot: snapshot, diameter: 250)),
-            const SizedBox(width: 28),
-            Expanded(
-              child: _SessionPanel(snapshot: snapshot, controller: controller),
-            ),
-          ],
+        child: Container(
+          padding: const EdgeInsets.all(42),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border.all(color: colors.outlineVariant),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 350,
+                child: _TimerDial(snapshot: snapshot, diameter: 330),
+              ),
+              const SizedBox(width: 48),
+              Expanded(
+                child: _SessionPanel(
+                  snapshot: snapshot,
+                  controller: controller,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -393,8 +413,8 @@ class _CompactLayout extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const SizedBox(height: 16),
-          _TimerDial(snapshot: snapshot, diameter: 260),
-          const SizedBox(height: 36),
+          _TimerDial(snapshot: snapshot, diameter: 190),
+          const SizedBox(height: 14),
           _SessionPanel(snapshot: snapshot, controller: controller),
         ],
       ),
@@ -436,7 +456,7 @@ class _TimerDial extends StatelessWidget {
                 strokeWidth: 8,
                 strokeCap: StrokeCap.round,
                 backgroundColor: colors.surfaceContainerHighest,
-                color: colors.primary,
+                color: colors.secondary,
               ),
             ),
             Column(
@@ -514,7 +534,7 @@ class _SessionPanel extends StatelessWidget {
         const SizedBox(height: 28),
         _Controls(snapshot: snapshot, controller: controller),
         const SizedBox(height: 24),
-        _NextSession(label: snapshot.nextSessionLabel),
+        _NextSession(snapshot: snapshot),
         const SizedBox(height: 20),
         Text(
           'Pomodoro ${snapshot.completedPomodoros + 1}',
@@ -530,46 +550,129 @@ class _SessionPanel extends StatelessWidget {
 }
 
 class _NextSession extends StatelessWidget {
-  const _NextSession({required this.label});
+  const _NextSession({required this.snapshot});
 
-  final String label;
+  final TimerSnapshot snapshot;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final labels = <String>[
+      'Fokus 01',
+      'Fokus ${snapshot.completedPomodoros + 1}',
+      'Zusatzfokus',
+      snapshot.nextSessionLabel,
+    ];
+    final current = snapshot.phase == null
+        ? -1
+        : snapshot.phase == TimerPhase.additionalPomodoro
+        ? 2
+        : snapshot.phase == TimerPhase.shortBreak ||
+              snapshot.phase == TimerPhase.longBreak
+        ? 3
+        : 1;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      padding: const EdgeInsets.fromLTRB(0, 18, 0, 0),
       decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border.all(color: colors.outlineVariant),
-        borderRadius: BorderRadius.circular(14),
+        border: Border(top: BorderSide(color: colors.outlineVariant)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(Icons.arrow_forward_rounded, color: colors.primary, size: 18),
-          const SizedBox(width: 9),
-          Text(
-            'UP NEXT',
-            style: TextStyle(
-              color: colors.onSurfaceVariant,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: colors.onSurface,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            runSpacing: 8,
+            children: [
+              Text(
+                'YOUR RHYTHM',
+                style: TextStyle(
+                  color: colors.onSurfaceVariant,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
               ),
-            ),
+              Text(
+                'UP NEXT',
+                style: TextStyle(
+                  color: colors.secondary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .7,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              for (var index = 0; index < labels.length; index++) ...[
+                Expanded(
+                  child: _ProgressSegment(
+                    progress: index < current
+                        ? 1
+                        : index == current
+                        ? snapshot.progress
+                        : 0,
+                    active: index == current,
+                    color: colors,
+                    label: labels[index],
+                  ),
+                ),
+                if (index != labels.length - 1) const SizedBox(width: 5),
+              ],
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ProgressSegment extends StatelessWidget {
+  const _ProgressSegment({
+    required this.progress,
+    required this.active,
+    required this.color,
+    required this.label,
+  });
+
+  final double progress;
+  final bool active;
+  final ColorScheme color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 7,
+          child: LayoutBuilder(
+            builder: (context, constraints) => Stack(
+              children: [
+                Container(color: color.outlineVariant),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: constraints.maxWidth * progress.clamp(0, 1),
+                  color: active ? color.secondary : color.primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: active ? color.secondary : color.onSurfaceVariant,
+            fontSize: 10,
+            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -706,31 +809,39 @@ class _ControlsState extends State<_Controls> {
       spacing: 10,
       runSpacing: 10,
       children: [
-        FilledButton.icon(
-          onPressed: canStart ? () => controller.sendCommand('start') : null,
-          icon: Icon(startingBreak ? Icons.play_arrow : Icons.timer_outlined),
-          label: Text(startingBreak ? 'START BREAK' : 'START SESSION'),
-          style: FilledButton.styleFrom(
-            backgroundColor: colors.primary,
-            foregroundColor: colors.onPrimary,
-            minimumSize: const Size(184, 54),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(13),
+        Tooltip(
+          message: startingBreak ? 'Start break' : 'Start session',
+          child: FilledButton.icon(
+            onPressed: canStart ? () => controller.sendCommand('start') : null,
+            icon: Icon(startingBreak ? Icons.play_arrow : Icons.timer_outlined),
+            label: Opacity(
+              opacity: 0,
+              child: Text(startingBreak ? 'START BREAK' : 'START SESSION'),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              foregroundColor: colors.primary,
+              minimumSize: const Size(58, 58),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              side: BorderSide(color: colors.primary),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(7),
+              ),
             ),
           ),
         ),
         if (canControl)
-          IconButton.filledTonal(
+          IconButton.outlined(
             tooltip: paused ? 'Resume timer' : 'Pause timer',
             onPressed: () =>
                 controller.sendCommand(paused ? 'resume' : 'pause'),
             icon: Icon(paused ? Icons.play_arrow : Icons.pause),
             style: IconButton.styleFrom(
-              foregroundColor: colors.onPrimary,
-              backgroundColor: colors.primary,
+              foregroundColor: colors.primary,
+              side: BorderSide(color: colors.primary),
               fixedSize: const Size(52, 52),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(7),
               ),
             ),
           ),
@@ -740,9 +851,11 @@ class _ControlsState extends State<_Controls> {
             onPressed: () => controller.sendCommand('skip', seconds: 60),
             icon: const Icon(Icons.skip_next),
             style: IconButton.styleFrom(
+              foregroundColor: colors.primary,
+              side: BorderSide(color: colors.primary),
               fixedSize: const Size(52, 52),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(7),
               ),
             ),
           ),
@@ -756,10 +869,11 @@ class _ControlsState extends State<_Controls> {
                 : null,
             icon: Icon(canControl ? Icons.skip_next : Icons.stop),
             style: IconButton.styleFrom(
-              foregroundColor: colors.error,
+              foregroundColor: colors.primary,
+              side: BorderSide(color: colors.primary),
               fixedSize: const Size(52, 52),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(7),
               ),
             ),
           ),
