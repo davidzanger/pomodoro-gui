@@ -834,7 +834,15 @@ class _ControlsState extends State<_Controls> {
           onPressed: canControl
               ? () => controller.sendCommand('skip', seconds: 60)
               : null,
-          icon: const Text('1m', style: TextStyle(fontWeight: FontWeight.w800)),
+          icon: Text(
+            '1 MIN',
+            style: TextStyle(
+              color: colors.secondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+            ),
+          ),
           style: controlStyle,
         ),
         IconButton.outlined(
