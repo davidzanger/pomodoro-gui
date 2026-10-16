@@ -368,32 +368,20 @@ class _WideLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1040),
-        child: Container(
-          padding: const EdgeInsets.all(42),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            border: Border.all(color: colors.outlineVariant),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 350,
-                child: _TimerDial(snapshot: snapshot, diameter: 330),
-              ),
-              const SizedBox(width: 48),
-              Expanded(
-                child: _SessionPanel(
-                  snapshot: snapshot,
-                  controller: controller,
-                ),
-              ),
-            ],
-          ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 350,
+              child: _TimerDial(snapshot: snapshot, diameter: 330),
+            ),
+            const SizedBox(width: 48),
+            Expanded(
+              child: _SessionPanel(snapshot: snapshot, controller: controller),
+            ),
+          ],
         ),
       ),
     );
@@ -446,7 +434,6 @@ class _TimerDial extends StatelessWidget {
               decoration: BoxDecoration(
                 color: colors.surface,
                 shape: BoxShape.circle,
-                border: Border.all(color: colors.outlineVariant),
               ),
             ),
             SizedBox.square(
@@ -557,20 +544,24 @@ class _NextSession extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final focusNumber =
+        snapshot.phase == TimerPhase.pomodoro || snapshot.phase == null
+        ? snapshot.completedPomodoros + 1
+        : snapshot.completedPomodoros;
     final labels = <String>[
-      'Fokus 01',
-      'Fokus ${snapshot.completedPomodoros + 1}',
+      'Fokus $focusNumber',
       'Zusatzfokus',
-      snapshot.nextSessionLabel,
+      'Pause',
+      'Fokus ${focusNumber + 1}',
     ];
     final current = snapshot.phase == null
-        ? -1
+        ? 0
         : snapshot.phase == TimerPhase.additionalPomodoro
-        ? 2
+        ? 1
         : snapshot.phase == TimerPhase.shortBreak ||
               snapshot.phase == TimerPhase.longBreak
-        ? 3
-        : 1;
+        ? 2
+        : 0;
     return Container(
       padding: const EdgeInsets.fromLTRB(0, 18, 0, 0),
       decoration: BoxDecoration(
@@ -592,14 +583,21 @@ class _NextSession extends StatelessWidget {
                   letterSpacing: 1.1,
                 ),
               ),
-              Text(
-                'UP NEXT',
-                style: TextStyle(
-                  color: colors.secondary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: .7,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'UP NEXT',
+                    style: TextStyle(
+                      color: colors.secondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .7,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(snapshot.nextSessionLabel),
+                ],
               ),
             ],
           ),
@@ -654,6 +652,7 @@ class _ProgressSegment extends StatelessWidget {
               children: [
                 Container(color: color.outlineVariant),
                 AnimatedContainer(
+                  key: ValueKey('rhythm-progress-$label'),
                   duration: const Duration(milliseconds: 250),
                   width: constraints.maxWidth * progress.clamp(0, 1),
                   color: active ? color.secondary : color.primary,
@@ -800,7 +799,6 @@ class _ControlsState extends State<_Controls> {
     final waiting = snapshot.status == TimerStatus.waiting;
     final paused = snapshot.status == TimerStatus.paused;
     final running = snapshot.status == TimerStatus.running;
-    final startingBreak = waiting && snapshot.phase != TimerPhase.pomodoro;
     final canStart =
         connected && (snapshot.status == TimerStatus.idle || waiting);
     final canControl = connected && (running || paused);
@@ -809,74 +807,57 @@ class _ControlsState extends State<_Controls> {
       spacing: 10,
       runSpacing: 10,
       children: [
-        Tooltip(
-          message: startingBreak ? 'Start break' : 'Start session',
-          child: FilledButton.icon(
-            onPressed: canStart ? () => controller.sendCommand('start') : null,
-            icon: Icon(startingBreak ? Icons.play_arrow : Icons.timer_outlined),
-            label: Opacity(
-              opacity: 0,
-              child: Text(startingBreak ? 'START BREAK' : 'START SESSION'),
-            ),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              foregroundColor: colors.primary,
-              minimumSize: const Size(58, 58),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              side: BorderSide(color: colors.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(7),
-              ),
+        IconButton.filledTonal(
+          tooltip: canStart
+              ? waiting
+                    ? 'Start next phase'
+                    : 'Start session'
+              : paused
+              ? 'Resume timer'
+              : 'Pause timer',
+          onPressed: canStart
+              ? () => controller.sendCommand('start')
+              : canControl
+              ? () => controller.sendCommand(paused ? 'resume' : 'pause')
+              : null,
+          icon: Icon(canControl && running ? Icons.pause : Icons.play_arrow),
+          style: IconButton.styleFrom(
+            foregroundColor: colors.onPrimary,
+            backgroundColor: colors.primary,
+            fixedSize: const Size(52, 52),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(13),
             ),
           ),
         ),
-        if (canControl)
-          IconButton.outlined(
-            tooltip: paused ? 'Resume timer' : 'Pause timer',
-            onPressed: () =>
-                controller.sendCommand(paused ? 'resume' : 'pause'),
-            icon: Icon(paused ? Icons.play_arrow : Icons.pause),
-            style: IconButton.styleFrom(
-              foregroundColor: colors.primary,
-              side: BorderSide(color: colors.primary),
-              fixedSize: const Size(52, 52),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(7),
-              ),
+        IconButton.outlined(
+          tooltip: 'Skip ahead one minute',
+          onPressed: canControl
+              ? () => controller.sendCommand('skip', seconds: 60)
+              : null,
+          icon: const Text('1m', style: TextStyle(fontWeight: FontWeight.w800)),
+          style: IconButton.styleFrom(
+            foregroundColor: colors.onSurfaceVariant,
+            side: BorderSide(color: colors.outline),
+            fixedSize: const Size(52, 52),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(13),
             ),
           ),
-        if (canControl)
-          IconButton.outlined(
-            tooltip: 'Skip ahead one minute',
-            onPressed: () => controller.sendCommand('skip', seconds: 60),
-            icon: const Icon(Icons.skip_next),
-            style: IconButton.styleFrom(
-              foregroundColor: colors.primary,
-              side: BorderSide(color: colors.primary),
-              fixedSize: const Size(52, 52),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(7),
-              ),
+        ),
+        IconButton.outlined(
+          tooltip: 'Skip to next session',
+          onPressed: canControl ? _queueSkipToNextSession : null,
+          icon: const Icon(Icons.skip_next),
+          style: IconButton.styleFrom(
+            foregroundColor: colors.secondary,
+            side: BorderSide(color: colors.secondary),
+            fixedSize: const Size(52, 52),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(13),
             ),
           ),
-        if (snapshot.phase != null)
-          IconButton.outlined(
-            tooltip: canControl ? 'Skip to next session' : 'Cancel session',
-            onPressed: connected
-                ? canControl
-                      ? _queueSkipToNextSession
-                      : () => controller.sendCommand('cancel')
-                : null,
-            icon: Icon(canControl ? Icons.skip_next : Icons.stop),
-            style: IconButton.styleFrom(
-              foregroundColor: colors.primary,
-              side: BorderSide(color: colors.primary),
-              fixedSize: const Size(52, 52),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(7),
-              ),
-            ),
-          ),
+        ),
       ],
     );
   }

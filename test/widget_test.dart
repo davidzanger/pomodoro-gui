@@ -157,7 +157,7 @@ void main() {
 
     expect(find.text('POMODORO'), findsOneWidget);
     expect(find.text('--:--'), findsOneWidget);
-    await tester.tap(find.text('START SESSION'));
+    await tester.tap(find.byTooltip('Start session'));
     await tester.pump();
 
     expect(controller.commands, ['start']);
@@ -415,8 +415,11 @@ void main() {
 
     expect(find.text('Connection unavailable'), findsOneWidget);
     expect(find.text('CONNECTING TO RUST'), findsOneWidget);
-    final startButton = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'START SESSION'),
+    final startButton = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.play_arrow),
+        matching: find.byType(IconButton),
+      ),
     );
     expect(startButton.onPressed, isNull);
     await tester.tap(find.byTooltip('View logs'));
@@ -425,7 +428,7 @@ void main() {
     expect(controller.commands, isEmpty);
   });
 
-  testWidgets('starts a waiting break and can cancel an inactive phase', (
+  testWidgets('starts a waiting break with only three controls', (
     tester,
   ) async {
     final controller = FakeTimerController(
@@ -439,25 +442,11 @@ void main() {
     );
     await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
 
-    expect(find.text('START BREAK'), findsOneWidget);
-    await tester.tap(find.text('START BREAK'));
+    expect(find.byTooltip('Start next phase'), findsOneWidget);
+    expect(find.byTooltip('Cancel session'), findsNothing);
+    await tester.tap(find.byTooltip('Start next phase'));
     await tester.pump();
     expect(controller.commands, ['start']);
-
-    controller.update(
-      const TimerSnapshot(
-        status: TimerStatus.waiting,
-        phase: TimerPhase.shortBreak,
-        elapsedSeconds: 0,
-        durationSeconds: 300,
-        completedPomodoros: 1,
-      ),
-    );
-    await tester.pump();
-    await tester.tap(find.byTooltip('Cancel session'));
-    await tester.pump();
-    expect(controller.commands, ['start', 'cancel']);
-    expect(controller.snapshot.phase, isNull);
   });
 
   testWidgets('uses the compact layout and clamps a finished timer to zero', (
@@ -602,8 +591,8 @@ void main() {
     expect(app.theme!.colorScheme.primary, const Color(0xFF304137));
     expect(app.theme!.colorScheme.secondary, const Color(0xFFAD6547));
     expect(find.text('YOUR RHYTHM'), findsOneWidget);
-    expect(find.text('Fokus 01'), findsOneWidget);
     expect(find.text('Fokus 1'), findsOneWidget);
+    expect(find.text('Fokus 2'), findsOneWidget);
     expect(find.byTooltip('Pause timer'), findsOneWidget);
     expect(find.byTooltip('Skip ahead one minute'), findsOneWidget);
     expect(find.byTooltip('Skip to next session'), findsOneWidget);
@@ -613,5 +602,14 @@ void main() {
     );
     expect(progress.color, const Color(0xFFAD6547));
     expect(progress.value, closeTo(0.2, 0.001));
+
+    final firstBar = tester.getSize(
+      find.byKey(const ValueKey('rhythm-progress-Fokus 1')),
+    );
+    final secondBar = tester.getSize(
+      find.byKey(const ValueKey('rhythm-progress-Zusatzfokus')),
+    );
+    expect(firstBar.width, greaterThan(0));
+    expect(secondBar.width, 0);
   });
 }
