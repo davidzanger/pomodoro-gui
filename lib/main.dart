@@ -495,7 +495,7 @@ class _SessionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final title = snapshot.phase?.label ?? 'A little focus goes a long way.';
+    final title = snapshot.phase?.label ?? 'Ready for your Pomodoro.';
     final sessionLabel = snapshot.completedPomodoros == 1
         ? 'session'
         : 'sessions';
@@ -544,15 +544,19 @@ class _NextSession extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final focusNumber =
+    final pomodoroNumber =
         snapshot.phase == TimerPhase.pomodoro || snapshot.phase == null
         ? snapshot.completedPomodoros + 1
         : snapshot.completedPomodoros;
     final labels = <String>[
-      'Fokus $focusNumber',
-      'Zusatzfokus',
-      'Pause',
-      'Fokus ${focusNumber + 1}',
+      'Pomodoro $pomodoroNumber',
+      'Additional Pomodoro',
+      switch (snapshot.phase) {
+        TimerPhase.shortBreak => 'Short break',
+        TimerPhase.longBreak => 'Long break',
+        _ => 'Break',
+      },
+      'Pomodoro ${pomodoroNumber + 1}',
     ];
     final current = snapshot.phase == null
         ? 0
@@ -743,13 +747,9 @@ class _ControlsState extends State<_Controls> {
         _phaseChangeCompleter = phaseChange;
         try {
           appTalker.info(
-            'Skipping ${snapshot.phase!.name} with '
-            '${snapshot.remaining.inSeconds} seconds remaining.',
+            'Advancing from ${snapshot.phase!.name} to the next session.',
           );
-          await widget.controller.sendCommand(
-            'skip',
-            seconds: snapshot.remaining.inSeconds,
-          );
+          await widget.controller.sendCommand('nextPhase');
           await phaseChange.future.timeout(_phaseChangeTimeout);
         } on TimeoutException catch (error, stackTrace) {
           _queuedNextSessionSkips = 0;

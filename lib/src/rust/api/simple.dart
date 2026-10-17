@@ -44,4 +44,4 @@ abstract class TimerService implements RustOpaqueInterface {
 }
 
 /// A supported timer operation.
-enum TimerCommand { start, pause, resume, skip, cancel, quit }
+enum TimerCommand { start, pause, resume, skip, nextPhase, cancel, quit }

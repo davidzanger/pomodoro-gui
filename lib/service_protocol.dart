@@ -18,7 +18,7 @@ extension TimerStatusLabel on TimerStatus {
 extension TimerPhaseLabel on TimerPhase {
   String get label => switch (this) {
     TimerPhase.pomodoro => 'Pomodoro',
-    TimerPhase.additionalPomodoro => 'Additional focus',
+    TimerPhase.additionalPomodoro => 'Additional Pomodoro',
     TimerPhase.shortBreak => 'Short break',
     TimerPhase.longBreak => 'Long break',
   };
@@ -41,7 +41,7 @@ class TimerSnapshot {
 
   String get nextSessionLabel => switch (phase) {
     null => 'Pomodoro',
-    TimerPhase.pomodoro => 'Additional focus',
+    TimerPhase.pomodoro => 'Additional Pomodoro',
     TimerPhase.additionalPomodoro => 'Break',
     TimerPhase.shortBreak || TimerPhase.longBreak => 'Pomodoro',
   };

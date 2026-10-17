@@ -8,7 +8,7 @@ void main() {
     expect(TimerStatus.paused.label, 'Paused');
     expect(TimerStatus.waiting.label, 'Waiting to start');
     expect(TimerPhase.pomodoro.label, 'Pomodoro');
-    expect(TimerPhase.additionalPomodoro.label, 'Additional focus');
+    expect(TimerPhase.additionalPomodoro.label, 'Additional Pomodoro');
     expect(TimerPhase.shortBreak.label, 'Short break');
     expect(TimerPhase.longBreak.label, 'Long break');
   });
@@ -23,7 +23,10 @@ void main() {
     );
 
     expect(snapshot(null).nextSessionLabel, 'Pomodoro');
-    expect(snapshot(TimerPhase.pomodoro).nextSessionLabel, 'Additional focus');
+    expect(
+      snapshot(TimerPhase.pomodoro).nextSessionLabel,
+      'Additional Pomodoro',
+    );
     expect(snapshot(TimerPhase.additionalPomodoro).nextSessionLabel, 'Break');
     expect(snapshot(TimerPhase.shortBreak).nextSessionLabel, 'Pomodoro');
     expect(snapshot(TimerPhase.longBreak).nextSessionLabel, 'Pomodoro');

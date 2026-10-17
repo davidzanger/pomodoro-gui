@@ -315,7 +315,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Set your focus time, breaks, and what happens when each phase ends.',
+                'Set your Pomodoro duration, breaks, and what happens when each phase ends.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 32),
@@ -347,9 +347,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       _numberField(
                         keyName: 'pomodoro',
-                        label: 'Focus duration',
+                        label: 'Pomodoro duration',
                         explanation:
-                            'Length of each regular focus session in minutes.',
+                            'Length of each regular Pomodoro in minutes.',
                         suffix: 'minutes',
                         minimum: 1,
                         update: (value, minutes) =>
@@ -358,9 +358,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 12),
                       _numberField(
                         keyName: 'additional',
-                        label: 'Additional focus phase',
+                        label: 'Additional Pomodoro duration',
                         explanation:
-                            'Extra focus time after a regular Pomodoro. Set to 0 to skip this phase.',
+                            'Length of the additional Pomodoro after a regular Pomodoro. Set to 0 to skip this phase.',
                         suffix: 'minutes (0 = off)',
                         minimum: 0,
                         update: (value, minutes) =>
@@ -404,7 +404,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         contentPadding: EdgeInsets.zero,
                         title: _settingLabel(
                           'Start breaks automatically',
-                          'Begin the next break as soon as focus time ends. When off, the timer waits for you to start it.',
+                          'Begin the next break as soon as the Pomodoro ends. When off, the timer waits for you to start it.',
                         ),
                         value: options.autoStartBreak,
                         onChanged: (enabled) => _updateOptions(
@@ -414,7 +414,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       SwitchListTile.adaptive(
                         contentPadding: EdgeInsets.zero,
                         title: _settingLabel(
-                          'Start focus automatically after a break',
+                          'Start Pomodoro automatically after a break',
                           'Begin the next Pomodoro when a break ends. Turn this off to start manually and enable a reminder.',
                         ),
                         value: options.autoStartPomodoro,
@@ -433,7 +433,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Actions apply to upcoming phases. Reminders repeat while the next focus session waits to start.',
+                'Actions apply to upcoming phases. Reminders repeat while the next Pomodoro waits to start.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
@@ -444,9 +444,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       _eventField(
                         keyName: 'pomodoro',
-                        label: 'When focus or a break ends',
+                        label: 'When a Pomodoro or a break ends',
                         explanation:
-                            'Choose a sound or lock the screen when a regular focus session or a break ends. An empty sound path uses the built-in sound.',
+                            'Choose a sound or lock the screen when a regular Pomodoro or a break ends. An empty sound path uses the built-in sound.',
                         event: options.endEventPomodoro,
                         update: (value, event) =>
                             value.copyWith(endEventPomodoro: event),
@@ -454,9 +454,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 18),
                       _eventField(
                         keyName: 'additional',
-                        label: 'When additional focus ends',
+                        label: 'When an additional Pomodoro ends',
                         explanation:
-                            'Choose what happens after the extra focus phase. This phase is skipped when its duration is 0.',
+                            'Choose what happens after the additional Pomodoro. This phase is skipped when its duration is 0.',
                         event: options.endEventAdditionalPomodoro,
                         update: (value, event) =>
                             value.copyWith(endEventAdditionalPomodoro: event),
@@ -466,7 +466,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         keyName: 'reminderInterval',
                         label: 'Reminder after a break',
                         explanation:
-                            'Minutes after a break ends before the reminder action runs. Used only when automatic focus start is off. Set to 0 to disable it.',
+                            'Minutes after a break ends before the reminder action runs. Used only when automatic Pomodoro start is off. Set to 0 to disable it.',
                         suffix: 'minutes (0 = off)',
                         minimum: 0,
                         update: (value, minutes) =>

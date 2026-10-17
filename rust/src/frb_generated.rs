@@ -459,8 +459,9 @@ impl SseDecode for crate::api::simple::TimerCommand {
             1 => crate::api::simple::TimerCommand::Pause,
             2 => crate::api::simple::TimerCommand::Resume,
             3 => crate::api::simple::TimerCommand::Skip,
-            4 => crate::api::simple::TimerCommand::Cancel,
-            5 => crate::api::simple::TimerCommand::Quit,
+            4 => crate::api::simple::TimerCommand::NextPhase,
+            5 => crate::api::simple::TimerCommand::Cancel,
+            6 => crate::api::simple::TimerCommand::Quit,
             _ => unreachable!("Invalid variant for TimerCommand: {}", inner),
         };
     }
@@ -552,8 +553,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::simple::TimerCommand {
             Self::Pause => 1.into_dart(),
             Self::Resume => 2.into_dart(),
             Self::Skip => 3.into_dart(),
-            Self::Cancel => 4.into_dart(),
-            Self::Quit => 5.into_dart(),
+            Self::NextPhase => 4.into_dart(),
+            Self::Cancel => 5.into_dart(),
+            Self::Quit => 6.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -659,8 +661,9 @@ impl SseEncode for crate::api::simple::TimerCommand {
                 crate::api::simple::TimerCommand::Pause => 1,
                 crate::api::simple::TimerCommand::Resume => 2,
                 crate::api::simple::TimerCommand::Skip => 3,
-                crate::api::simple::TimerCommand::Cancel => 4,
-                crate::api::simple::TimerCommand::Quit => 5,
+                crate::api::simple::TimerCommand::NextPhase => 4,
+                crate::api::simple::TimerCommand::Cancel => 5,
+                crate::api::simple::TimerCommand::Quit => 6,
                 _ => {
                     unimplemented!("");
                 }

@@ -76,6 +76,7 @@ void main() {
       'pause',
       'resume',
       'skip',
+      'nextPhase',
       'cancel',
       'quit',
     ]) {
@@ -92,6 +93,7 @@ void main() {
         rust_api.TimerCommand.pause,
         rust_api.TimerCommand.resume,
         rust_api.TimerCommand.skip,
+        rust_api.TimerCommand.nextPhase,
         rust_api.TimerCommand.cancel,
         rust_api.TimerCommand.quit,
       ],
@@ -223,6 +225,7 @@ void main() {
         'pause',
         'resume',
         'skip',
+        'nextPhase',
         'cancel',
         'quit',
       ]) {
@@ -233,6 +236,7 @@ void main() {
         'pause',
         'resume',
         'skip',
+        'nextPhase',
         'cancel',
         'quit',
       ]);

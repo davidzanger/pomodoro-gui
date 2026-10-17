@@ -67,7 +67,7 @@ void main() {
 
   test('actions and reminders round-trip in the Rust options format', () {
     const options = TimerOptions(
-      endEventPomodoro: TimerEndEvent.sound('C:\\audio\\focus.wav'),
+      endEventPomodoro: TimerEndEvent.sound('C:\\audio\\pomodoro.wav'),
       endEventAdditionalPomodoro: TimerEndEvent.sound(),
       intervalReminderAfterBreak: 12,
       eventReminderAfterBreak: TimerEndEvent.lockScreen(),
@@ -75,12 +75,12 @@ void main() {
     final decoded = TimerOptions.decode(options.encode());
     final json = jsonDecode(options.encode()) as Map<String, dynamic>;
 
-    expect(decoded.endEventPomodoro.soundPath, 'C:\\audio\\focus.wav');
+    expect(decoded.endEventPomodoro.soundPath, 'C:\\audio\\pomodoro.wav');
     expect(decoded.endEventAdditionalPomodoro.kind, TimerEventKind.sound);
     expect(decoded.intervalReminderAfterBreak, 12);
     expect(decoded.eventReminderAfterBreak.kind, TimerEventKind.lockScreen);
     expect(json['endEventPomodoro'], {
-      'sound': {'filepathSound': 'C:\\audio\\focus.wav'},
+      'sound': {'filepathSound': 'C:\\audio\\pomodoro.wav'},
     });
     expect(json['eventReminderAfterBreak'], 'lockScreen');
     expect(

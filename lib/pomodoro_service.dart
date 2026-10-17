@@ -112,7 +112,13 @@ class PomodoroService extends TimerController {
 
     try {
       final command = switch (type) {
-        'start' || 'pause' || 'resume' || 'skip' || 'cancel' || 'quit' => type,
+        'start' ||
+        'pause' ||
+        'resume' ||
+        'skip' ||
+        'nextPhase' ||
+        'cancel' ||
+        'quit' => type,
         _ => throw ArgumentError.value(type, 'type', 'Unknown timer command'),
       };
       appTalker.debug(
@@ -333,6 +339,7 @@ class RustTimerServiceConnection implements TimerServiceConnection {
       'pause' => rust_api.TimerCommand.pause,
       'resume' => rust_api.TimerCommand.resume,
       'skip' => rust_api.TimerCommand.skip,
+      'nextPhase' => rust_api.TimerCommand.nextPhase,
       'cancel' => rust_api.TimerCommand.cancel,
       'quit' => rust_api.TimerCommand.quit,
       _ => throw ArgumentError.value(type, 'type', 'Unknown timer command'),

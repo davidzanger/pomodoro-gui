@@ -40,6 +40,14 @@ void main() {
       final started = ServiceEvent.decode(events.current);
       expect(started.state?.durationSeconds, 60);
 
+      await service.sendCommand(command: rust_api.TimerCommand.nextPhase);
+      expect(await events.moveNext(), isTrue);
+      expect(ServiceEvent.decode(events.current).type, 'phaseCompleted');
+      expect(await events.moveNext(), isTrue);
+      final next = ServiceEvent.decode(events.current);
+      expect(next.state?.phase, TimerPhase.pomodoro);
+      expect(next.state?.elapsedSeconds, 0);
+
       quitSent = true;
       await service.sendCommand(command: rust_api.TimerCommand.quit);
       expect(await events.moveNext(), isTrue);

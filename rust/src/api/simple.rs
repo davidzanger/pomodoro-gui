@@ -17,6 +17,7 @@ pub enum TimerCommand {
     Pause,
     Resume,
     Skip,
+    NextPhase,
     Cancel,
     Quit,
 }
@@ -99,6 +100,7 @@ impl TimerService {
                 }
                 format!(r#"{{"type":"skip","seconds":{seconds}}}"#)
             }
+            TimerCommand::NextPhase => r#"{"type":"nextPhase"}"#.to_owned(),
             TimerCommand::Cancel => r#"{"type":"cancel"}"#.to_owned(),
             TimerCommand::Quit => r#"{"type":"quit"}"#.to_owned(),
         };

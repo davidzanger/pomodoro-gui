@@ -98,12 +98,12 @@ class TimerOptions {
     const maxMinutes = 2147483647;
     if (durationPomodoro < 1 || durationPomodoro > maxMinutes) {
       throw const FormatException(
-        'Focus duration must be between 1 and 2147483647 minutes.',
+        'Pomodoro duration must be between 1 and 2147483647 minutes.',
       );
     }
     if (additionalDuration < 0 || additionalDuration > maxMinutes) {
       throw const FormatException(
-        'Additional focus duration must be between 0 and 2147483647 minutes.',
+        'Additional Pomodoro duration must be between 0 and 2147483647 minutes.',
       );
     }
     if (durationShortBreak < 0 || durationShortBreak > maxMinutes) {

@@ -64,10 +64,10 @@ class FakeTimerController extends TimerController {
   Future<void> sendCommand(String type, {int? seconds}) async {
     commands.add(type);
     commandSeconds.add(seconds);
-    if (type == 'skip' && skipResponseDelay > Duration.zero) {
+    if (type == 'nextPhase' && skipResponseDelay > Duration.zero) {
       await Future<void>.delayed(skipResponseDelay);
     }
-    if (type == 'skip') {
+    if (type == 'nextPhase') {
       if (skipError case final error?) throw error;
     }
     if (type == 'start') {
@@ -79,7 +79,7 @@ class FakeTimerController extends TimerController {
         completedPomodoros: 0,
       );
       notifyListeners();
-    } else if (type == 'skip') {
+    } else if (type == 'nextPhase') {
       if (skipDoesNotAdvance) return;
       _snapshot = switch (_snapshot.phase) {
         TimerPhase.pomodoro => const TimerSnapshot(
@@ -180,21 +180,21 @@ void main() {
     await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
 
     expect(find.text('UP NEXT'), findsOneWidget);
-    expect(find.text('Additional focus'), findsOneWidget);
+    expect(find.text('Additional Pomodoro'), findsNWidgets(2));
     await tester.tap(find.byTooltip('Skip to next session'));
     await tester.pump();
 
-    expect(controller.commands, ['skip']);
-    expect(controller.commandSeconds, [1200]);
-    expect(find.text('Additional focus'), findsOneWidget);
-    expect(find.text('Break'), findsOneWidget);
+    expect(controller.commands, ['nextPhase']);
+    expect(controller.commandSeconds, [null]);
+    expect(find.text('Additional Pomodoro'), findsNWidgets(2));
+    expect(find.text('Break'), findsNWidgets(2));
 
     await tester.tap(find.byTooltip('Skip to next session'));
     await tester.pump();
 
-    expect(controller.commands, ['skip', 'skip']);
-    expect(controller.commandSeconds, [1200, 300]);
-    expect(find.text('Short break'), findsOneWidget);
+    expect(controller.commands, ['nextPhase', 'nextPhase']);
+    expect(controller.commandSeconds, [null, null]);
+    expect(find.text('Short break'), findsNWidgets(2));
     expect(find.text('Pomodoro'), findsOneWidget);
   });
 
@@ -223,8 +223,8 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
 
-    expect(controller.commands, ['skip', 'skip']);
-    expect(controller.commandSeconds, [1200, 300]);
+    expect(controller.commands, ['nextPhase', 'nextPhase']);
+    expect(controller.commandSeconds, [null, null]);
     expect(controller.snapshot.phase, TimerPhase.shortBreak);
     expect(controller.snapshot.status, TimerStatus.waiting);
   });
@@ -251,7 +251,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
-    expect(find.text('Focus duration'), findsOneWidget);
+    expect(find.text('Pomodoro duration'), findsOneWidget);
 
     await tester.enterText(find.byKey(const ValueKey('pomodoro')), '30');
     await tester.pumpAndSettle();
@@ -338,13 +338,13 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     final info = find.byTooltip(
-      'Choose a sound or lock the screen when a regular focus session or a break ends. An empty sound path uses the built-in sound.',
+      'Choose a sound or lock the screen when a regular Pomodoro or a break ends. An empty sound path uses the built-in sound.',
     );
     await tester.ensureVisible(info);
     await tester.pumpAndSettle();
     await tester.tap(info);
     await tester.pumpAndSettle();
-    expect(find.text('When focus or a break ends'), findsNWidgets(2));
+    expect(find.text('When a Pomodoro or a break ends'), findsNWidgets(2));
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
 
@@ -469,9 +469,13 @@ void main() {
 
     expect(find.text('00:00'), findsOneWidget);
     expect(find.text('PAUSED'), findsOneWidget);
-    expect(find.text('Long break'), findsOneWidget);
+    expect(find.text('Long break'), findsNWidgets(2));
+    expect(
+      find.byKey(const ValueKey('rhythm-progress-Long break')),
+      findsOneWidget,
+    );
     expect(find.text('4 completed sessions'), findsOneWidget);
-    expect(find.text('Pomodoro 5'), findsOneWidget);
+    expect(find.text('Pomodoro 5'), findsNWidgets(2));
   });
 
   testWidgets('shows feedback when skip fails or never advances', (
@@ -568,7 +572,7 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 1));
         await tester.pump();
-        expect(controller.commands, List.filled(index + 1, 'skip'));
+        expect(controller.commands, List.filled(index + 1, 'nextPhase'));
       }
     },
   );
@@ -591,8 +595,8 @@ void main() {
     expect(app.theme!.colorScheme.primary, const Color(0xFF304137));
     expect(app.theme!.colorScheme.secondary, const Color(0xFFAD6547));
     expect(find.text('YOUR RHYTHM'), findsOneWidget);
-    expect(find.text('Fokus 1'), findsOneWidget);
-    expect(find.text('Fokus 2'), findsOneWidget);
+    expect(find.text('Pomodoro 1'), findsNWidgets(2));
+    expect(find.text('Pomodoro 2'), findsOneWidget);
     expect(find.byTooltip('Pause timer'), findsOneWidget);
     expect(find.byTooltip('Skip ahead one minute'), findsOneWidget);
     expect(find.byTooltip('Skip to next session'), findsOneWidget);
@@ -604,10 +608,10 @@ void main() {
     expect(progress.value, closeTo(0.2, 0.001));
 
     final firstBar = tester.getSize(
-      find.byKey(const ValueKey('rhythm-progress-Fokus 1')),
+      find.byKey(const ValueKey('rhythm-progress-Pomodoro 1')),
     );
     final secondBar = tester.getSize(
-      find.byKey(const ValueKey('rhythm-progress-Zusatzfokus')),
+      find.byKey(const ValueKey('rhythm-progress-Additional Pomodoro')),
     );
     expect(firstBar.width, greaterThan(0));
     expect(secondBar.width, 0);
