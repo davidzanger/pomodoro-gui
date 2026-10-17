@@ -117,6 +117,8 @@ class PomodoroService extends TimerController {
         'resume' ||
         'skip' ||
         'nextPhase' ||
+        'continueAdditional' ||
+        'startBreak' ||
         'cancel' ||
         'quit' => type,
         _ => throw ArgumentError.value(type, 'type', 'Unknown timer command'),
@@ -340,6 +342,8 @@ class RustTimerServiceConnection implements TimerServiceConnection {
       'resume' => rust_api.TimerCommand.resume,
       'skip' => rust_api.TimerCommand.skip,
       'nextPhase' => rust_api.TimerCommand.nextPhase,
+      'continueAdditional' => rust_api.TimerCommand.continueAdditional,
+      'startBreak' => rust_api.TimerCommand.startBreak,
       'cancel' => rust_api.TimerCommand.cancel,
       'quit' => rust_api.TimerCommand.quit,
       _ => throw ArgumentError.value(type, 'type', 'Unknown timer command'),
@@ -352,6 +356,8 @@ class RustTimerServiceConnection implements TimerServiceConnection {
     return _service.updateSettings(
       durationPomodoro: options.durationPomodoro,
       additionalDuration: options.additionalDuration,
+      repeatAdditionalPomodoro: options.repeatAdditionalPomodoro,
+      askBeforeBreak: options.askBeforeBreak,
       durationShortBreak: options.durationShortBreak,
       durationLongBreak: options.durationLongBreak,
       intervalLongBreak: options.intervalLongBreak,

@@ -198,7 +198,7 @@ ThemeData _themeData(Brightness brightness) {
   );
 }
 
-class PomodoroHome extends StatelessWidget {
+class PomodoroHome extends StatefulWidget {
   const PomodoroHome({
     super.key,
     required this.controller,
@@ -215,11 +215,80 @@ class PomodoroHome extends StatelessWidget {
   final AppSettingsChanged onSettingsReset;
 
   @override
+  State<PomodoroHome> createState() => _PomodoroHomeState();
+}
+
+class _PomodoroHomeState extends State<PomodoroHome> {
+  bool _showingBreakDecision = false;
+  int _decisionGeneration = 0;
+
+  Future<void> _showBreakDecision(TimerSnapshot snapshot) async {
+    if (!mounted ||
+        widget.controller.snapshot.status !=
+            TimerStatus.awaitingBreakDecision) {
+      _showingBreakDecision = false;
+      return;
+    }
+    final generation = _decisionGeneration;
+    final minutes = snapshot.durationSeconds ~/ 60;
+    final takeBreak = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Take a break?'),
+        content: const Text(
+          'A short break can help you return with a clearer head. Ready to take one?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Keep working ($minutes min)'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Take a break'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    _showingBreakDecision = false;
+    if (generation != _decisionGeneration) {
+      if (widget.controller.snapshot.status ==
+          TimerStatus.awaitingBreakDecision) {
+        setState(() {});
+      }
+      return;
+    }
+    if (widget.controller.snapshot.status !=
+        TimerStatus.awaitingBreakDecision) {
+      return;
+    }
+    await widget.controller.sendCommand(
+      takeBreak == true ? 'startBreak' : 'continueAdditional',
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: controller,
+      animation: widget.controller,
       builder: (context, _) {
+        final controller = widget.controller;
+        final settings = widget.settings;
+        final settingsError = widget.settingsError;
+        final onSettingsChanged = widget.onSettingsChanged;
+        final onSettingsReset = widget.onSettingsReset;
         final snapshot = controller.snapshot;
+        if (snapshot.status == TimerStatus.awaitingBreakDecision) {
+          if (!_showingBreakDecision) {
+            _showingBreakDecision = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              unawaited(_showBreakDecision(snapshot));
+            });
+          }
+        } else {
+          _decisionGeneration++;
+        }
         return Scaffold(
           body: SafeArea(
             child: LayoutBuilder(

@@ -29,6 +29,8 @@ void main() {
       await service.updateSettings(
         durationPomodoro: 1,
         additionalDuration: 0,
+        repeatAdditionalPomodoro: true,
+        askBeforeBreak: true,
         durationShortBreak: 0,
         durationLongBreak: 0,
         intervalLongBreak: 4,

@@ -18,6 +18,8 @@ pub enum TimerCommand {
     Resume,
     Skip,
     NextPhase,
+    ContinueAdditional,
+    StartBreak,
     Cancel,
     Quit,
 }
@@ -101,6 +103,8 @@ impl TimerService {
                 format!(r#"{{"type":"skip","seconds":{seconds}}}"#)
             }
             TimerCommand::NextPhase => r#"{"type":"nextPhase"}"#.to_owned(),
+            TimerCommand::ContinueAdditional => r#"{"type":"continueAdditional"}"#.to_owned(),
+            TimerCommand::StartBreak => r#"{"type":"startBreak"}"#.to_owned(),
             TimerCommand::Cancel => r#"{"type":"cancel"}"#.to_owned(),
             TimerCommand::Quit => r#"{"type":"quit"}"#.to_owned(),
         };
@@ -115,6 +119,8 @@ impl TimerService {
         &self,
         duration_pomodoro: i32,
         additional_duration: i32,
+        repeat_additional_pomodoro: bool,
+        ask_before_break: bool,
         duration_short_break: i32,
         duration_long_break: i32,
         interval_long_break: i32,
@@ -126,6 +132,8 @@ impl TimerService {
             "settings": {
                 "durationPomodoro": duration_pomodoro,
                 "additionalDuration": additional_duration,
+                "repeatAdditionalPomodoro": repeat_additional_pomodoro,
+                "askBeforeBreak": ask_before_break,
                 "durationShortBreak": duration_short_break,
                 "durationLongBreak": duration_long_break,
                 "intervalLongBreak": interval_long_break,

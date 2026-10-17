@@ -77,6 +77,8 @@ void main() {
       'resume',
       'skip',
       'nextPhase',
+      'continueAdditional',
+      'startBreak',
       'cancel',
       'quit',
     ]) {
@@ -94,6 +96,8 @@ void main() {
         rust_api.TimerCommand.resume,
         rust_api.TimerCommand.skip,
         rust_api.TimerCommand.nextPhase,
+        rust_api.TimerCommand.continueAdditional,
+        rust_api.TimerCommand.startBreak,
         rust_api.TimerCommand.cancel,
         rust_api.TimerCommand.quit,
       ],
@@ -110,6 +114,8 @@ void main() {
     expect(update.memberName, #updateSettings);
     expect(update.namedArguments[#durationPomodoro], 35);
     expect(update.namedArguments[#additionalDuration], 5);
+    expect(update.namedArguments[#repeatAdditionalPomodoro], isTrue);
+    expect(update.namedArguments[#askBeforeBreak], isTrue);
     expect(() => connection.sendCommand('other'), throwsArgumentError);
     await generatedService.eventController.close();
   });

@@ -2,7 +2,7 @@ import 'dart:convert';
 
 const serviceProtocolVersion = 1;
 
-enum TimerStatus { idle, running, paused, waiting }
+enum TimerStatus { idle, running, paused, waiting, awaitingBreakDecision }
 
 enum TimerPhase { pomodoro, additionalPomodoro, shortBreak, longBreak }
 
@@ -12,6 +12,7 @@ extension TimerStatusLabel on TimerStatus {
     TimerStatus.running => 'In progress',
     TimerStatus.paused => 'Paused',
     TimerStatus.waiting => 'Waiting to start',
+    TimerStatus.awaitingBreakDecision => 'Choose a break',
   };
 }
 
@@ -39,12 +40,14 @@ class TimerSnapshot {
   final int durationSeconds;
   final int completedPomodoros;
 
-  String get nextSessionLabel => switch (phase) {
-    null => 'Pomodoro',
-    TimerPhase.pomodoro => 'Additional Pomodoro',
-    TimerPhase.additionalPomodoro => 'Break',
-    TimerPhase.shortBreak || TimerPhase.longBreak => 'Pomodoro',
-  };
+  String get nextSessionLabel => status == TimerStatus.awaitingBreakDecision
+      ? 'Your choice'
+      : switch (phase) {
+          null => 'Pomodoro',
+          TimerPhase.pomodoro => 'Additional Pomodoro',
+          TimerPhase.additionalPomodoro => 'Break',
+          TimerPhase.shortBreak || TimerPhase.longBreak => 'Pomodoro',
+        };
 
   Duration get remaining => Duration(
     seconds: (durationSeconds - elapsedSeconds).clamp(0, durationSeconds),

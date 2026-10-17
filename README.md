@@ -30,7 +30,7 @@ The generated FRB API is in `lib/src/rust/`; edit the bridge API in `rust/src/ap
 
 The Flutter app needs neither a `POMODORO_RUST_EXECUTABLE` environment variable nor a separate `locking-pomodoro-timer.exe`. Rust's existing `--service` CLI entry point remains available for compatibility and testing.
 
-The top-bar **Settings** button opens every timer option in `pomodoro_options.json`: durations, break cycles, automatic starts, end actions, sound paths, and break reminders. Each control has an info button that also shows its explanation on hover. Changes save immediately; durations take effect on the next phase and actions on upcoming phase completions. A reminder repeats while the next Pomodoro is waiting for manual start. The app theme is stored separately by Flutter using `shared_preferences` and is never written to the Rust options file.
+The top-bar **Settings** button opens every timer option in `pomodoro_options.json`: durations, break cycles, Additional Pomodoro repetition and break decisions, automatic starts, end actions, sound paths, and break reminders. Each control has an info button that also shows its explanation on hover. Changes save immediately; durations take effect on the next phase and actions on upcoming phase completions. Repetition and the break decision are enabled by default when the Additional Pomodoro duration is positive. After each completed Additional Pomodoro, the selected sound or screen lock runs before the break decision appears. **Skip to next session** during that phase starts the due break immediately. A reminder repeats while the next Pomodoro is waiting for manual start. The app theme is stored separately by Flutter using `shared_preferences` and is never written to the Rust options file.
 
 ## In-app logs
 

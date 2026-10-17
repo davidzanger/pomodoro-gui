@@ -367,6 +367,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             value.copyWith(additionalDuration: minutes),
                       ),
                       const SizedBox(height: 12),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: _settingLabel(
+                          'Repeat Additional Pomodoros',
+                          'Keep starting another Additional Pomodoro until you choose the due break. Requires a duration above 0.',
+                        ),
+                        value: options.repeatAdditionalEnabled,
+                        onChanged: options.additionalDuration > 0
+                            ? (enabled) => _updateOptions(
+                                (value) => value.copyWith(
+                                  repeatAdditionalPomodoro: enabled,
+                                ),
+                              )
+                            : null,
+                      ),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: _settingLabel(
+                          'Ask before each break',
+                          'After each completed Additional Pomodoro, choose another work round or the due break.',
+                        ),
+                        value: options.breakDecisionEnabled,
+                        onChanged: options.repeatAdditionalEnabled
+                            ? (enabled) => _updateOptions(
+                                (value) =>
+                                    value.copyWith(askBeforeBreak: enabled),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(height: 12),
                       _numberField(
                         keyName: 'shortBreak',
                         label: 'Short break',

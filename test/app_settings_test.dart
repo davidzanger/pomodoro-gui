@@ -56,6 +56,8 @@ void main() {
 
     expect(decoded.durationPomodoro, 30);
     expect(decoded.additionalDuration, 0);
+    expect(decoded.repeatAdditionalEnabled, isFalse);
+    expect(decoded.breakDecisionEnabled, isFalse);
     expect(decoded.durationShortBreak, 4);
     expect(decoded.durationLongBreak, 12);
     expect(decoded.intervalLongBreak, 0);
@@ -63,6 +65,20 @@ void main() {
     expect(decoded.autoStartPomodoro, isTrue);
     final json = jsonDecode(options.encode()) as Map<String, dynamic>;
     expect(json.containsKey('themeMode'), isFalse);
+  });
+
+  test('older settings enable repetition and the decision by default', () {
+    final options = TimerOptions.decode(
+      '{"durationPomodoro":25,"additionalDuration":5,'
+      '"durationShortBreak":5,"durationLongBreak":15,'
+      '"intervalLongBreak":4,"autoStartBreak":true,'
+      '"autoStartPomodoro":true}',
+    );
+    expect(options.repeatAdditionalEnabled, isTrue);
+    expect(options.breakDecisionEnabled, isTrue);
+    final withoutQuestion = options.copyWith(askBeforeBreak: false);
+    expect(withoutQuestion.repeatAdditionalEnabled, isTrue);
+    expect(withoutQuestion.breakDecisionEnabled, isFalse);
   });
 
   test('actions and reminders round-trip in the Rust options format', () {

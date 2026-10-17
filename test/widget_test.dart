@@ -101,6 +101,17 @@ class FakeTimerController extends TimerController {
         _ => _snapshot,
       };
       notifyListeners();
+    } else if (type == 'continueAdditional' || type == 'startBreak') {
+      _snapshot = TimerSnapshot(
+        status: TimerStatus.running,
+        phase: type == 'startBreak'
+            ? TimerPhase.shortBreak
+            : TimerPhase.additionalPomodoro,
+        elapsedSeconds: 0,
+        durationSeconds: 300,
+        completedPomodoros: 1,
+      );
+      notifyListeners();
     } else if (type == 'pause') {
       _snapshot = TimerSnapshot(
         status: TimerStatus.paused,
@@ -151,6 +162,103 @@ Future<void> _pumpPomodoroApp(
 );
 
 void main() {
+  testWidgets('break decision can continue work or start the due break', (
+    tester,
+  ) async {
+    final controller = FakeTimerController(
+      initialSnapshot: const TimerSnapshot(
+        status: TimerStatus.awaitingBreakDecision,
+        phase: TimerPhase.additionalPomodoro,
+        elapsedSeconds: 0,
+        durationSeconds: 300,
+        completedPomodoros: 1,
+      ),
+    );
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
+    await tester.pumpAndSettle();
+    expect(find.text('Keep working (5 min)'), findsOneWidget);
+    await tester.tap(find.text('Keep working (5 min)'));
+    await tester.pumpAndSettle();
+    expect(controller.commands, ['continueAdditional']);
+
+    controller.update(
+      const TimerSnapshot(
+        status: TimerStatus.awaitingBreakDecision,
+        phase: TimerPhase.additionalPomodoro,
+        elapsedSeconds: 0,
+        durationSeconds: 300,
+        completedPomodoros: 1,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Take a break'));
+    await tester.pumpAndSettle();
+    expect(controller.commands, ['continueAdditional', 'startBreak']);
+  });
+
+  testWidgets(
+    'dismissing the break decision starts another Additional Pomodoro',
+    (tester) async {
+      final controller = FakeTimerController(
+        initialSnapshot: const TimerSnapshot(
+          status: TimerStatus.awaitingBreakDecision,
+          phase: TimerPhase.additionalPomodoro,
+          elapsedSeconds: 0,
+          durationSeconds: 300,
+          completedPomodoros: 1,
+        ),
+      );
+      await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      expect(controller.commands, ['continueAdditional']);
+    },
+  );
+
+  testWidgets('a stale break dialog cannot answer a later decision', (
+    tester,
+  ) async {
+    final controller = FakeTimerController(
+      initialSnapshot: const TimerSnapshot(
+        status: TimerStatus.awaitingBreakDecision,
+        phase: TimerPhase.additionalPomodoro,
+        elapsedSeconds: 0,
+        durationSeconds: 300,
+        completedPomodoros: 1,
+      ),
+    );
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
+    await tester.pumpAndSettle();
+    controller.update(
+      const TimerSnapshot(
+        status: TimerStatus.running,
+        phase: TimerPhase.shortBreak,
+        elapsedSeconds: 0,
+        durationSeconds: 300,
+        completedPomodoros: 1,
+      ),
+    );
+    await tester.pump();
+    controller.update(
+      const TimerSnapshot(
+        status: TimerStatus.awaitingBreakDecision,
+        phase: TimerPhase.additionalPomodoro,
+        elapsedSeconds: 0,
+        durationSeconds: 300,
+        completedPomodoros: 2,
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Take a break'));
+    await tester.pumpAndSettle();
+    expect(controller.commands, isEmpty);
+    expect(find.text('Take a break'), findsOneWidget);
+    await tester.tap(find.text('Take a break'));
+    await tester.pumpAndSettle();
+    expect(controller.commands, ['startBreak']);
+  });
+
   testWidgets('starts a Pomodoro through the timer controller', (tester) async {
     final controller = FakeTimerController();
     await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());

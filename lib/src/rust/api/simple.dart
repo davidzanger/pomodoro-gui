@@ -35,6 +35,8 @@ abstract class TimerService implements RustOpaqueInterface {
   Future<void> updateSettings({
     required int durationPomodoro,
     required int additionalDuration,
+    required bool repeatAdditionalPomodoro,
+    required bool askBeforeBreak,
     required int durationShortBreak,
     required int durationLongBreak,
     required int intervalLongBreak,
@@ -44,4 +46,14 @@ abstract class TimerService implements RustOpaqueInterface {
 }
 
 /// A supported timer operation.
-enum TimerCommand { start, pause, resume, skip, nextPhase, cancel, quit }
+enum TimerCommand {
+  start,
+  pause,
+  resume,
+  skip,
+  nextPhase,
+  continueAdditional,
+  startBreak,
+  cancel,
+  quit,
+}

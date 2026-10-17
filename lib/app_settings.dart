@@ -42,6 +42,8 @@ class TimerOptions {
   const TimerOptions({
     this.durationPomodoro = 25,
     this.additionalDuration = 5,
+    this.repeatAdditionalPomodoro = true,
+    this.askBeforeBreak = true,
     this.durationShortBreak = 5,
     this.durationLongBreak = 15,
     this.intervalLongBreak = 4,
@@ -55,6 +57,11 @@ class TimerOptions {
 
   final int durationPomodoro;
   final int additionalDuration;
+  final bool repeatAdditionalPomodoro;
+  final bool askBeforeBreak;
+  bool get repeatAdditionalEnabled =>
+      additionalDuration > 0 && repeatAdditionalPomodoro;
+  bool get breakDecisionEnabled => repeatAdditionalEnabled && askBeforeBreak;
   final int durationShortBreak;
   final int durationLongBreak;
   final int intervalLongBreak;
@@ -68,6 +75,8 @@ class TimerOptions {
   TimerOptions copyWith({
     int? durationPomodoro,
     int? additionalDuration,
+    bool? repeatAdditionalPomodoro,
+    bool? askBeforeBreak,
     int? durationShortBreak,
     int? durationLongBreak,
     int? intervalLongBreak,
@@ -80,6 +89,9 @@ class TimerOptions {
   }) => TimerOptions(
     durationPomodoro: durationPomodoro ?? this.durationPomodoro,
     additionalDuration: additionalDuration ?? this.additionalDuration,
+    repeatAdditionalPomodoro:
+        repeatAdditionalPomodoro ?? this.repeatAdditionalPomodoro,
+    askBeforeBreak: askBeforeBreak ?? this.askBeforeBreak,
     durationShortBreak: durationShortBreak ?? this.durationShortBreak,
     durationLongBreak: durationLongBreak ?? this.durationLongBreak,
     intervalLongBreak: intervalLongBreak ?? this.intervalLongBreak,
@@ -132,6 +144,8 @@ class TimerOptions {
   Map<String, Object> toJson() => {
     'durationPomodoro': durationPomodoro,
     'additionalDuration': additionalDuration,
+    'repeatAdditionalPomodoro': repeatAdditionalPomodoro,
+    'askBeforeBreak': askBeforeBreak,
     'durationShortBreak': durationShortBreak,
     'durationLongBreak': durationLongBreak,
     'intervalLongBreak': intervalLongBreak,
@@ -153,6 +167,12 @@ class TimerOptions {
     final options = TimerOptions(
       durationPomodoro: _readInt(decoded, 'durationPomodoro'),
       additionalDuration: _readInt(decoded, 'additionalDuration'),
+      repeatAdditionalPomodoro: decoded.containsKey('repeatAdditionalPomodoro')
+          ? _readBool(decoded, 'repeatAdditionalPomodoro')
+          : true,
+      askBeforeBreak: decoded.containsKey('askBeforeBreak')
+          ? _readBool(decoded, 'askBeforeBreak')
+          : true,
       durationShortBreak: _readInt(decoded, 'durationShortBreak'),
       durationLongBreak: _readInt(decoded, 'durationLongBreak'),
       intervalLongBreak: _readInt(decoded, 'intervalLongBreak'),

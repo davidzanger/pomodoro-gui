@@ -90,6 +90,8 @@ abstract class RustLibApi extends BaseApi {
     required TimerService that,
     required int durationPomodoro,
     required int additionalDuration,
+    required bool repeatAdditionalPomodoro,
+    required bool askBeforeBreak,
     required int durationShortBreak,
     required int durationLongBreak,
     required int intervalLongBreak,
@@ -208,6 +210,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required TimerService that,
     required int durationPomodoro,
     required int additionalDuration,
+    required bool repeatAdditionalPomodoro,
+    required bool askBeforeBreak,
     required int durationShortBreak,
     required int durationLongBreak,
     required int intervalLongBreak,
@@ -224,6 +228,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           sse_encode_i_32(durationPomodoro, serializer);
           sse_encode_i_32(additionalDuration, serializer);
+          sse_encode_bool(repeatAdditionalPomodoro, serializer);
+          sse_encode_bool(askBeforeBreak, serializer);
           sse_encode_i_32(durationShortBreak, serializer);
           sse_encode_i_32(durationLongBreak, serializer);
           sse_encode_i_32(intervalLongBreak, serializer);
@@ -245,6 +251,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           that,
           durationPomodoro,
           additionalDuration,
+          repeatAdditionalPomodoro,
+          askBeforeBreak,
           durationShortBreak,
           durationLongBreak,
           intervalLongBreak,
@@ -263,6 +271,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "that",
           "durationPomodoro",
           "additionalDuration",
+          "repeatAdditionalPomodoro",
+          "askBeforeBreak",
           "durationShortBreak",
           "durationLongBreak",
           "intervalLongBreak",
@@ -803,6 +813,8 @@ class TimerServiceImpl extends RustOpaque implements TimerService {
   Future<void> updateSettings({
     required int durationPomodoro,
     required int additionalDuration,
+    required bool repeatAdditionalPomodoro,
+    required bool askBeforeBreak,
     required int durationShortBreak,
     required int durationLongBreak,
     required int intervalLongBreak,
@@ -812,6 +824,8 @@ class TimerServiceImpl extends RustOpaque implements TimerService {
     that: this,
     durationPomodoro: durationPomodoro,
     additionalDuration: additionalDuration,
+    repeatAdditionalPomodoro: repeatAdditionalPomodoro,
+    askBeforeBreak: askBeforeBreak,
     durationShortBreak: durationShortBreak,
     durationLongBreak: durationLongBreak,
     intervalLongBreak: intervalLongBreak,
