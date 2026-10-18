@@ -312,6 +312,7 @@ void main() {
         'type': 'state',
         'status': 'running',
         'phase': 'pomodoro',
+        'phaseId': 1,
         'elapsedSeconds': 300,
         'durationSeconds': 1500,
         'completedPomodoros': 0,
@@ -326,6 +327,7 @@ void main() {
         'type': 'state',
         'status': 'paused',
         'phase': 'pomodoro',
+        'phaseId': 1,
         'elapsedSeconds': 300,
         'durationSeconds': 1500,
         'completedPomodoros': 0,
@@ -336,11 +338,14 @@ void main() {
         'type': 'phaseCompleted',
         'phase': 'pomodoro',
         'completedPomodoros': 1,
+        'phaseId': 1,
+        'skipped': true,
       });
       connection.emitEvent({
         'type': 'state',
         'status': 'running',
         'phase': 'additionalPomodoro',
+        'phaseId': 2,
         'elapsedSeconds': 0,
         'durationSeconds': 300,
         'completedPomodoros': 1,
@@ -348,15 +353,19 @@ void main() {
       expect(await first, isTrue);
       await Future<void>.delayed(Duration.zero);
       expect(connection.commands, ['nextPhase', 'nextPhase']);
+      expect(connection.commandSeconds, [1, 2]);
       connection.emitEvent({
         'type': 'phaseCompleted',
         'phase': 'additionalPomodoro',
         'completedPomodoros': 1,
+        'phaseId': 2,
+        'skipped': true,
       });
       connection.emitEvent({
         'type': 'state',
         'status': 'waiting',
         'phase': 'shortBreak',
+        'phaseId': 3,
         'elapsedSeconds': 0,
         'durationSeconds': 300,
         'completedPomodoros': 1,
@@ -400,6 +409,56 @@ void main() {
     service.dispose();
     await connection.close();
   });
+
+  test(
+    'natural completion cannot acknowledge a pending phase advance',
+    () async {
+      final connection = FakeTimerServiceConnection()..closeOnQuit = false;
+      final service = PomodoroService(serviceFactory: () async => connection);
+      await service.connect();
+      connection.emitEvent({'type': 'ready'});
+      connection.emitEvent({
+        'type': 'state',
+        'status': 'running',
+        'phase': 'additionalPomodoro',
+        'phaseId': 7,
+        'elapsedSeconds': 299,
+        'durationSeconds': 300,
+        'completedPomodoros': 1,
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      final advance = service.advanceToNextPhase();
+      await Future<void>.delayed(Duration.zero);
+      expect(connection.commandSeconds.single, 7);
+      connection.emitEvent({
+        'type': 'phaseCompleted',
+        'phase': 'additionalPomodoro',
+        'phaseId': 7,
+        'skipped': false,
+        'completedPomodoros': 1,
+      });
+      connection.emitEvent({
+        'type': 'state',
+        'status': 'running',
+        'phase': 'additionalPomodoro',
+        'phaseId': 8,
+        'elapsedSeconds': 0,
+        'durationSeconds': 300,
+        'completedPomodoros': 1,
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(connection.commands, ['nextPhase']);
+      connection.emitEvent({
+        'type': 'error',
+        'message': 'Timer phase changed before skip',
+      });
+      await expectLater(advance, throwsStateError);
+      expect(service.snapshot.phaseId, 8);
+      service.dispose();
+      await connection.close();
+    },
+  );
 
   test('reports a Rust error during phase advance', () async {
     final connection = FakeTimerServiceConnection()..closeOnQuit = false;

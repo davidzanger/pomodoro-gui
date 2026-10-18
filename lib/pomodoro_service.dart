@@ -69,6 +69,7 @@ class PomodoroService extends TimerController {
   bool _advancingPhase = false;
   Completer<void>? _phaseAdvanceState;
   bool _phaseCompleted = false;
+  int? _phaseAdvanceExpectedId;
 
   @override
   TimerSnapshot get snapshot => _snapshot;
@@ -169,8 +170,13 @@ class PomodoroService extends TimerController {
         phaseState.future.ignore();
         _phaseAdvanceState = phaseState;
         _phaseCompleted = false;
+        _phaseAdvanceExpectedId = _snapshot.phaseId;
         try {
-          await _service!.sendCommand('nextPhase');
+          // The bridge's numeric argument carries the observed phase ID here.
+          await _service!.sendCommand(
+            'nextPhase',
+            seconds: _phaseAdvanceExpectedId,
+          );
           await phaseState.future.timeout(const Duration(seconds: 5));
           request.complete(true);
         } on Object catch (error, stackTrace) {
@@ -182,6 +188,7 @@ class PomodoroService extends TimerController {
         } finally {
           if (identical(_phaseAdvanceState, phaseState)) {
             _phaseAdvanceState = null;
+            _phaseAdvanceExpectedId = null;
           }
         }
       }
@@ -284,7 +291,11 @@ class PomodoroService extends TimerController {
           appTalker.info('Waiting for the next timer phase to be started.');
         case 'phaseCompleted':
           appTalker.info('Timer phase ${event.phase!.name} completed.');
-          if (_phaseAdvanceState != null) _phaseCompleted = true;
+          if (_phaseAdvanceState != null &&
+              event.skipped == true &&
+              event.phaseId == _phaseAdvanceExpectedId) {
+            _phaseCompleted = true;
+          }
           break;
       }
     } on FormatException catch (error) {

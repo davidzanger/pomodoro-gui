@@ -104,6 +104,7 @@ void main() {
     final event = ServiceEvent.decode(
       '{"protocolVersion":1,"event":{"type":"state",'
       '"status":"running","phase":"pomodoro","nextStep":"shortBreak",'
+      '"phaseId":7,"breakDecisionId":3,"breakDecisionPending":true,'
       '"elapsedSeconds":12,"durationSeconds":1500,'
       '"completedPomodoros":2}}',
     );
@@ -115,6 +116,9 @@ void main() {
     expect(event.state?.durationSeconds, 1500);
     expect(event.state?.completedPomodoros, 2);
     expect(event.state?.nextSessionLabel, 'Short break');
+    expect(event.state?.phaseId, 7);
+    expect(event.state?.breakDecisionId, 3);
+    expect(event.state?.breakDecisionPending, isTrue);
   });
 
   test('rejects an unsupported protocol version', () {
@@ -145,11 +149,14 @@ void main() {
 
     final completed = ServiceEvent.decode(
       '{"protocolVersion":1,"event":{"type":"phaseCompleted",'
-      '"phase":"shortBreak","completedPomodoros":3}}',
+      '"phase":"shortBreak","completedPomodoros":3,'
+      '"phaseId":7,"skipped":true}}',
     );
     expect(completed.type, 'phaseCompleted');
     expect(completed.phase, TimerPhase.shortBreak);
     expect(completed.completedPomodoros, 3);
+    expect(completed.phaseId, 7);
+    expect(completed.skipped, isTrue);
 
     final error = ServiceEvent.decode(
       '{"protocolVersion":1,"event":{"type":"error","message":"failed"}}',

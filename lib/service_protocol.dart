@@ -2,17 +2,11 @@ import 'dart:convert';
 
 const serviceProtocolVersion = 1;
 
-enum TimerStatus { idle, running, paused, waiting, awaitingBreakDecision }
+enum TimerStatus { idle, running, paused, waiting }
 
 enum TimerPhase { pomodoro, additionalPomodoro, shortBreak, longBreak }
 
-enum NextStep {
-  pomodoro,
-  additionalPomodoro,
-  shortBreak,
-  longBreak,
-  breakDecision,
-}
+enum NextStep { pomodoro, additionalPomodoro, shortBreak, longBreak }
 
 extension NextStepLabel on NextStep {
   String get label => switch (this) {
@@ -20,7 +14,6 @@ extension NextStepLabel on NextStep {
     NextStep.additionalPomodoro => 'Additional Pomodoro',
     NextStep.shortBreak => 'Short break',
     NextStep.longBreak => 'Long break',
-    NextStep.breakDecision => 'Your choice',
   };
 }
 
@@ -30,7 +23,6 @@ extension TimerStatusLabel on TimerStatus {
     TimerStatus.running => 'In progress',
     TimerStatus.paused => 'Paused',
     TimerStatus.waiting => 'Waiting to start',
-    TimerStatus.awaitingBreakDecision => 'Choose a break',
   };
 }
 
@@ -51,6 +43,9 @@ class TimerSnapshot {
     required this.durationSeconds,
     required this.completedPomodoros,
     this.nextStep,
+    this.phaseId = 0,
+    this.breakDecisionId = 0,
+    this.breakDecisionPending = false,
   });
 
   final TimerStatus status;
@@ -59,17 +54,18 @@ class TimerSnapshot {
   final int durationSeconds;
   final int completedPomodoros;
   final NextStep? nextStep;
+  final int phaseId;
+  final int breakDecisionId;
+  final bool breakDecisionPending;
 
   String get nextSessionLabel =>
       nextStep?.label ??
-      (status == TimerStatus.awaitingBreakDecision
-          ? 'Your choice'
-          : switch (phase) {
-              null => 'Pomodoro',
-              TimerPhase.pomodoro => 'Additional Pomodoro',
-              TimerPhase.additionalPomodoro => 'Break',
-              TimerPhase.shortBreak || TimerPhase.longBreak => 'Pomodoro',
-            });
+      switch (phase) {
+        null => 'Pomodoro',
+        TimerPhase.pomodoro => 'Additional Pomodoro',
+        TimerPhase.additionalPomodoro => 'Break',
+        TimerPhase.shortBreak || TimerPhase.longBreak => 'Pomodoro',
+      };
 
   Duration get remaining => Duration(
     seconds: (durationSeconds - elapsedSeconds).clamp(0, durationSeconds),
@@ -91,6 +87,9 @@ class TimerSnapshot {
       nextStep: json['nextStep'] == null
           ? null
           : NextStep.values.byName(json['nextStep'] as String),
+      phaseId: (json['phaseId'] as num?)?.toInt() ?? 0,
+      breakDecisionId: (json['breakDecisionId'] as num?)?.toInt() ?? 0,
+      breakDecisionPending: json['breakDecisionPending'] as bool? ?? false,
     );
   }
 }
@@ -102,6 +101,8 @@ class ServiceEvent {
     this.phase,
     this.completedPomodoros,
     this.message,
+    this.phaseId,
+    this.skipped,
   });
 
   final String type;
@@ -109,6 +110,8 @@ class ServiceEvent {
   final TimerPhase? phase;
   final int? completedPomodoros;
   final String? message;
+  final int? phaseId;
+  final bool? skipped;
 
   factory ServiceEvent.decode(String line) {
     final response = jsonDecode(line) as Map<String, dynamic>;
@@ -131,6 +134,8 @@ class ServiceEvent {
           type: type,
           phase: TimerPhase.values.byName(event['phase'] as String),
           completedPomodoros: (event['completedPomodoros'] as num).toInt(),
+          phaseId: (event['phaseId'] as num?)?.toInt(),
+          skipped: event['skipped'] as bool?,
         );
       case 'error':
         return ServiceEvent(type: type, message: event['message'] as String);

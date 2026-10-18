@@ -111,9 +111,10 @@ class FakeTimerController extends TimerController {
         phase: type == 'startBreak'
             ? TimerPhase.shortBreak
             : TimerPhase.additionalPomodoro,
-        elapsedSeconds: 0,
+        elapsedSeconds: type == 'startBreak' ? 0 : _snapshot.elapsedSeconds,
         durationSeconds: 300,
         completedPomodoros: 1,
+        breakDecisionId: _snapshot.breakDecisionId,
       );
       notifyListeners();
     } else if (type == 'pause') {
@@ -123,6 +124,8 @@ class FakeTimerController extends TimerController {
         elapsedSeconds: _snapshot.elapsedSeconds,
         durationSeconds: _snapshot.durationSeconds,
         completedPomodoros: _snapshot.completedPomodoros,
+        breakDecisionId: _snapshot.breakDecisionId,
+        breakDecisionPending: _snapshot.breakDecisionPending,
       );
       notifyListeners();
     } else if (type == 'resume') {
@@ -132,6 +135,8 @@ class FakeTimerController extends TimerController {
         elapsedSeconds: _snapshot.elapsedSeconds,
         durationSeconds: _snapshot.durationSeconds,
         completedPomodoros: _snapshot.completedPomodoros,
+        breakDecisionId: _snapshot.breakDecisionId,
+        breakDecisionPending: _snapshot.breakDecisionPending,
       );
       notifyListeners();
     } else if (type == 'cancel') {
@@ -190,27 +195,32 @@ void main() {
   ) async {
     final controller = FakeTimerController(
       initialSnapshot: const TimerSnapshot(
-        status: TimerStatus.awaitingBreakDecision,
+        status: TimerStatus.running,
         phase: TimerPhase.additionalPomodoro,
-        elapsedSeconds: 0,
+        elapsedSeconds: 30,
         durationSeconds: 300,
         completedPomodoros: 1,
+        breakDecisionId: 1,
+        breakDecisionPending: true,
       ),
     );
     await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
     await tester.pumpAndSettle();
-    expect(find.text('Keep working (5 min)'), findsOneWidget);
-    await tester.tap(find.text('Keep working (5 min)'));
+    expect(find.text('Keep working'), findsOneWidget);
+    await tester.tap(find.text('Keep working'));
     await tester.pumpAndSettle();
     expect(controller.commands, ['continueAdditional']);
+    expect(controller.snapshot.elapsedSeconds, 30);
 
     controller.update(
       const TimerSnapshot(
-        status: TimerStatus.awaitingBreakDecision,
+        status: TimerStatus.running,
         phase: TimerPhase.additionalPomodoro,
-        elapsedSeconds: 0,
+        elapsedSeconds: 45,
         durationSeconds: 300,
         completedPomodoros: 1,
+        breakDecisionId: 2,
+        breakDecisionPending: true,
       ),
     );
     await tester.pumpAndSettle();
@@ -220,15 +230,17 @@ void main() {
   });
 
   testWidgets(
-    'dismissing the break decision starts another Additional Pomodoro',
+    'dismissing the break decision keeps the current Additional Pomodoro',
     (tester) async {
       final controller = FakeTimerController(
         initialSnapshot: const TimerSnapshot(
-          status: TimerStatus.awaitingBreakDecision,
+          status: TimerStatus.running,
           phase: TimerPhase.additionalPomodoro,
-          elapsedSeconds: 0,
+          elapsedSeconds: 45,
           durationSeconds: 300,
           completedPomodoros: 1,
+          breakDecisionId: 1,
+          breakDecisionPending: true,
         ),
       );
       await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
@@ -236,6 +248,7 @@ void main() {
       await tester.tapAt(const Offset(5, 5));
       await tester.pumpAndSettle();
       expect(controller.commands, ['continueAdditional']);
+      expect(controller.snapshot.elapsedSeconds, 45);
     },
   );
 
@@ -244,11 +257,13 @@ void main() {
   ) async {
     final controller = FakeTimerController(
       initialSnapshot: const TimerSnapshot(
-        status: TimerStatus.awaitingBreakDecision,
+        status: TimerStatus.running,
         phase: TimerPhase.additionalPomodoro,
         elapsedSeconds: 0,
         durationSeconds: 300,
         completedPomodoros: 1,
+        breakDecisionId: 1,
+        breakDecisionPending: true,
       ),
     );
     await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
@@ -262,24 +277,74 @@ void main() {
         completedPomodoros: 1,
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('Take a break'), findsNothing);
     controller.update(
       const TimerSnapshot(
-        status: TimerStatus.awaitingBreakDecision,
+        status: TimerStatus.running,
         phase: TimerPhase.additionalPomodoro,
         elapsedSeconds: 0,
         durationSeconds: 300,
         completedPomodoros: 2,
+        breakDecisionId: 2,
+        breakDecisionPending: true,
       ),
     );
-    await tester.pump();
-    await tester.tap(find.text('Take a break'));
     await tester.pumpAndSettle();
     expect(controller.commands, isEmpty);
     expect(find.text('Take a break'), findsOneWidget);
     await tester.tap(find.text('Take a break'));
     await tester.pumpAndSettle();
     expect(controller.commands, ['startBreak']);
+  });
+
+  testWidgets('one break decision stays open across automatic repeats', (
+    tester,
+  ) async {
+    final controller = FakeTimerController(
+      initialSnapshot: const TimerSnapshot(
+        status: TimerStatus.running,
+        phase: TimerPhase.additionalPomodoro,
+        elapsedSeconds: 20,
+        durationSeconds: 300,
+        completedPomodoros: 1,
+        breakDecisionId: 1,
+        breakDecisionPending: true,
+      ),
+    );
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
+    await tester.pumpAndSettle();
+    controller.update(
+      const TimerSnapshot(
+        status: TimerStatus.running,
+        phase: TimerPhase.additionalPomodoro,
+        elapsedSeconds: 10,
+        durationSeconds: 300,
+        completedPomodoros: 1,
+        breakDecisionId: 2,
+        breakDecisionPending: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Take a break'), findsOneWidget);
+    await tester.tap(find.text('Keep working'));
+    await tester.pumpAndSettle();
+    expect(find.text('Take a break'), findsNothing);
+    expect(controller.commands, ['continueAdditional']);
+
+    controller.update(
+      const TimerSnapshot(
+        status: TimerStatus.running,
+        phase: TimerPhase.additionalPomodoro,
+        elapsedSeconds: 0,
+        durationSeconds: 300,
+        completedPomodoros: 1,
+        breakDecisionId: 3,
+        breakDecisionPending: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Take a break'), findsOneWidget);
   });
 
   testWidgets('starts a Pomodoro through the timer controller', (tester) async {
@@ -382,11 +447,11 @@ void main() {
         elapsedSeconds: 30,
         durationSeconds: 300,
         completedPomodoros: 1,
-        nextStep: NextStep.breakDecision,
+        nextStep: NextStep.additionalPomodoro,
       ),
     );
     await tester.pump();
-    expect(find.text('Your choice'), findsOneWidget);
+    expect(find.text('Additional Pomodoro'), findsWidgets);
   });
 
   testWidgets('opens the in-app Talker log screen from the top bar', (

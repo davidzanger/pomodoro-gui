@@ -240,18 +240,15 @@ class PomodoroHome extends StatefulWidget {
 
 class _PomodoroHomeState extends State<PomodoroHome> {
   bool _showingBreakDecision = false;
-  int _decisionGeneration = 0;
+  int _lastDismissedDecisionId = 0;
+  DialogRoute<bool>? _decisionRoute;
 
-  Future<void> _showBreakDecision(TimerSnapshot snapshot) async {
-    if (!mounted ||
-        widget.controller.snapshot.status !=
-            TimerStatus.awaitingBreakDecision) {
+  Future<void> _showBreakDecision() async {
+    if (!mounted || !widget.controller.snapshot.breakDecisionPending) {
       _showingBreakDecision = false;
       return;
     }
-    final generation = _decisionGeneration;
-    final minutes = snapshot.durationSeconds ~/ 60;
-    final takeBreak = await showDialog<bool>(
+    final route = DialogRoute<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Take a break?'),
@@ -261,7 +258,7 @@ class _PomodoroHomeState extends State<PomodoroHome> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text('Keep working ($minutes min)'),
+            child: const Text('Keep working'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
@@ -270,19 +267,17 @@ class _PomodoroHomeState extends State<PomodoroHome> {
         ],
       ),
     );
+    _decisionRoute = route;
+    final takeBreak = await Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(route);
+    _decisionRoute = null;
     if (!mounted) return;
     _showingBreakDecision = false;
-    if (generation != _decisionGeneration) {
-      if (widget.controller.snapshot.status ==
-          TimerStatus.awaitingBreakDecision) {
-        setState(() {});
-      }
-      return;
-    }
-    if (widget.controller.snapshot.status !=
-        TimerStatus.awaitingBreakDecision) {
-      return;
-    }
+    final current = widget.controller.snapshot;
+    if (!current.breakDecisionPending) return;
+    _lastDismissedDecisionId = current.breakDecisionId;
     await widget.controller.sendCommand(
       takeBreak == true ? 'startBreak' : 'continueAdditional',
     );
@@ -299,15 +294,24 @@ class _PomodoroHomeState extends State<PomodoroHome> {
         final onSettingsChanged = widget.onSettingsChanged;
         final onSettingsReset = widget.onSettingsReset;
         final snapshot = controller.snapshot;
-        if (snapshot.status == TimerStatus.awaitingBreakDecision) {
-          if (!_showingBreakDecision) {
+        if (snapshot.breakDecisionPending &&
+            snapshot.phase == TimerPhase.additionalPomodoro) {
+          if (!_showingBreakDecision &&
+              snapshot.breakDecisionId > _lastDismissedDecisionId) {
             _showingBreakDecision = true;
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              unawaited(_showBreakDecision(snapshot));
+              unawaited(_showBreakDecision());
             });
           }
         } else {
-          _decisionGeneration++;
+          final route = _decisionRoute;
+          if (route != null && route.isActive) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && route.isActive) {
+                Navigator.of(context, rootNavigator: true).removeRoute(route);
+              }
+            });
+          }
         }
         return Scaffold(
           body: SafeArea(
@@ -648,7 +652,6 @@ class _NextSession extends StatelessWidget {
         onBreak ||
         snapshot.nextStep == NextStep.shortBreak ||
         snapshot.nextStep == NextStep.longBreak ||
-        snapshot.nextStep == NextStep.breakDecision ||
         snapshot.nextStep == null;
     final labels = onBreak
         ? <String>[snapshot.phase!.label, 'Pomodoro ${pomodoroNumber + 1}']

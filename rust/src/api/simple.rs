@@ -102,7 +102,17 @@ impl TimerService {
                 }
                 format!(r#"{{"type":"skip","seconds":{seconds}}}"#)
             }
-            TimerCommand::NextPhase => r#"{"type":"nextPhase"}"#.to_owned(),
+            TimerCommand::NextPhase => {
+                // Reuse the bridge's numeric argument as the observed phase ID.
+                if let Some(phase_id) = seconds {
+                    if phase_id < 0 {
+                        return Err("Phase ID must not be negative.".to_owned());
+                    }
+                    format!(r#"{{"type":"nextPhase","expectedPhaseId":{phase_id}}}"#)
+                } else {
+                    r#"{"type":"nextPhase"}"#.to_owned()
+                }
+            }
             TimerCommand::ContinueAdditional => r#"{"type":"continueAdditional"}"#.to_owned(),
             TimerCommand::StartBreak => r#"{"type":"startBreak"}"#.to_owned(),
             TimerCommand::Cancel => r#"{"type":"cancel"}"#.to_owned(),
