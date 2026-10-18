@@ -50,7 +50,9 @@ flutter analyze
 flutter test
 flutter test --coverage
 .\tools\check-flutter-coverage.ps1
+cargo test --manifest-path rust\Cargo.toml
 cargo test --manifest-path ..\..\pomodoro\Cargo.toml
+flutter test integration_test\timer_flow_test.dart -d windows
 ```
 
 Flutter's built-in coverage option writes `coverage/lcov.info`. The coverage
@@ -58,7 +60,8 @@ check reports line coverage for hand-written Dart under `lib/`, excluding the
 generated Rust bridge files in `lib/src/rust/`, and fails unless coverage is
 above 95%. The Flutter tests include an in-process FFI event-stream test. The
 Rust suite also tests the original `--service` process protocol to preserve CLI
-compatibility.
+compatibility. The Windows integration test drives the desktop controls through
+the real Rust timer; run it separately on a Windows desktop with build tools.
 
 ## Single-file Windows package
 

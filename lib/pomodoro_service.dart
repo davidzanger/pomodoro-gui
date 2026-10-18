@@ -314,6 +314,10 @@ class PomodoroService extends TimerController {
     if (_disposed) return;
     _isConnected = false;
     _errorMessage ??= 'The Rust timer stopped unexpectedly.';
+    final pending = _phaseAdvanceState;
+    if (pending != null && !pending.isCompleted) {
+      pending.completeError(StateError(_errorMessage!));
+    }
     appTalker.warning('Rust timer event stream closed.');
     notifyListeners();
   }

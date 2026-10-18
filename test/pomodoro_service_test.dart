@@ -539,6 +539,40 @@ void main() {
     },
   );
 
+  test(
+    'a closed Rust event stream fails a pending phase advance promptly',
+    () async {
+      final connection = FakeTimerServiceConnection()..closeOnQuit = false;
+      final service = PomodoroService(serviceFactory: () async => connection);
+      await service.connect();
+      connection.emitEvent({'type': 'ready'});
+      connection.emitEvent({
+        'type': 'state',
+        'status': 'running',
+        'phase': 'pomodoro',
+        'phaseId': 4,
+        'elapsedSeconds': 10,
+        'durationSeconds': 1500,
+        'completedPomodoros': 0,
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      final advance = service.advanceToNextPhase();
+      await Future<void>.delayed(Duration.zero);
+      expect(connection.commands, ['nextPhase']);
+      await connection.close();
+      await expectLater(
+        advance.timeout(const Duration(milliseconds: 300)),
+        throwsStateError,
+      );
+      expect(
+        service.errorMessage,
+        contains('The Rust timer stopped unexpectedly.'),
+      );
+      service.dispose();
+    },
+  );
+
   test('reports malformed events and asynchronous stream errors', () async {
     final connection = FakeTimerServiceConnection();
     final service = PomodoroService(serviceFactory: () async => connection);

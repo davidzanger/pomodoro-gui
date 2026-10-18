@@ -10,6 +10,68 @@ import 'package:pomodoro_gui/src/rust/api/simple.dart' as rust_api;
 import 'package:pomodoro_gui/src/rust/frb_generated.dart';
 
 void main() {
+  test(
+    'rejects a stale phase ID across FFI and advances the current phase',
+    () async {
+      await rustBridgeInitializer.ensureInitialized();
+      final service = await rust_api.createTimerService();
+      final events = StreamIterator(service.events());
+      var quitSent = false;
+      try {
+        expect(
+          ServiceEvent.decode(
+            (await events.moveNext()) ? events.current : '',
+          ).type,
+          'ready',
+        );
+        expect(
+          ServiceEvent.decode(
+            (await events.moveNext()) ? events.current : '',
+          ).state?.status,
+          TimerStatus.idle,
+        );
+        await service.sendCommand(command: rust_api.TimerCommand.start);
+        expect(await events.moveNext(), isTrue);
+        final started = ServiceEvent.decode(events.current).state!;
+        expect(started.status, TimerStatus.running);
+
+        await service.sendCommand(
+          command: rust_api.TimerCommand.nextPhase,
+          seconds: started.phaseId + 1,
+        );
+        expect(await events.moveNext(), isTrue);
+        expect(
+          ServiceEvent.decode(events.current).message,
+          contains('phase changed'),
+        );
+
+        await service.sendCommand(
+          command: rust_api.TimerCommand.nextPhase,
+          seconds: started.phaseId,
+        );
+        expect(await events.moveNext(), isTrue);
+        final completed = ServiceEvent.decode(events.current);
+        expect(completed.type, 'phaseCompleted');
+        expect(completed.phaseId, started.phaseId);
+        expect(completed.skipped, isTrue);
+        expect(await events.moveNext(), isTrue);
+        final next = ServiceEvent.decode(events.current).state!;
+        expect(next.phaseId, greaterThan(started.phaseId));
+
+        quitSent = true;
+        await service.sendCommand(command: rust_api.TimerCommand.quit);
+        expect(await events.moveNext(), isTrue);
+        expect(ServiceEvent.decode(events.current).type, 'stopped');
+      } finally {
+        if (!quitSent) {
+          await service.sendCommand(command: rust_api.TimerCommand.quit);
+        }
+        await events.cancel();
+      }
+    },
+    skip: !Platform.isWindows,
+  );
+
   test('streams timer events from the in-process Rust service', () async {
     await rustBridgeInitializer.ensureInitialized();
     final settings =
