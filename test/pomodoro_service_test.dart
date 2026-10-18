@@ -301,6 +301,185 @@ void main() {
     await connection.done;
   });
 
+  test(
+    'advances only after phase completion and serializes rapid requests',
+    () async {
+      final connection = FakeTimerServiceConnection()..closeOnQuit = false;
+      final service = PomodoroService(serviceFactory: () async => connection);
+      await service.connect();
+      connection.emitEvent({'type': 'ready'});
+      connection.emitEvent({
+        'type': 'state',
+        'status': 'running',
+        'phase': 'pomodoro',
+        'elapsedSeconds': 300,
+        'durationSeconds': 1500,
+        'completedPomodoros': 0,
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      final first = service.advanceToNextPhase();
+      final second = service.advanceToNextPhase();
+      await Future<void>.delayed(Duration.zero);
+      expect(connection.commands, ['nextPhase']);
+      connection.emitEvent({
+        'type': 'state',
+        'status': 'paused',
+        'phase': 'pomodoro',
+        'elapsedSeconds': 300,
+        'durationSeconds': 1500,
+        'completedPomodoros': 0,
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(connection.commands, ['nextPhase']);
+      connection.emitEvent({
+        'type': 'phaseCompleted',
+        'phase': 'pomodoro',
+        'completedPomodoros': 1,
+      });
+      connection.emitEvent({
+        'type': 'state',
+        'status': 'running',
+        'phase': 'additionalPomodoro',
+        'elapsedSeconds': 0,
+        'durationSeconds': 300,
+        'completedPomodoros': 1,
+      });
+      expect(await first, isTrue);
+      await Future<void>.delayed(Duration.zero);
+      expect(connection.commands, ['nextPhase', 'nextPhase']);
+      connection.emitEvent({
+        'type': 'phaseCompleted',
+        'phase': 'additionalPomodoro',
+        'completedPomodoros': 1,
+      });
+      connection.emitEvent({
+        'type': 'state',
+        'status': 'waiting',
+        'phase': 'shortBreak',
+        'elapsedSeconds': 0,
+        'durationSeconds': 300,
+        'completedPomodoros': 1,
+      });
+      expect(await second, isTrue);
+      service.dispose();
+      await connection.close();
+    },
+  );
+
+  test('restores saved timer options when live update fails', () async {
+    final connection = FakeTimerServiceConnection()
+      ..closeOnQuit = false
+      ..settingsError = StateError('update failed');
+    final saved = <TimerOptions>[];
+    const previous = TimerOptions(durationPomodoro: 25);
+    const requested = TimerOptions(durationPomodoro: 30);
+    final service = PomodoroService(
+      serviceFactory: () async => connection,
+      settingsLoader: () async => previous,
+      settingsSaver: (options) async => saved.add(options),
+    );
+    await service.connect();
+    connection.emitEvent({'type': 'ready'});
+    await Future<void>.delayed(Duration.zero);
+    await expectLater(service.updateSettings(requested), throwsStateError);
+    expect(saved, [requested, previous]);
+    service.dispose();
+    await connection.close();
+  });
+
+  test('does not send a phase advance while the timer is idle', () async {
+    final connection = FakeTimerServiceConnection()..closeOnQuit = false;
+    final service = PomodoroService(serviceFactory: () async => connection);
+    await service.connect();
+    connection.emitEvent({'type': 'ready'});
+    await Future<void>.delayed(Duration.zero);
+
+    expect(await service.advanceToNextPhase(), isFalse);
+    expect(connection.commands, isEmpty);
+    service.dispose();
+    await connection.close();
+  });
+
+  test('reports a Rust error during phase advance', () async {
+    final connection = FakeTimerServiceConnection()..closeOnQuit = false;
+    final service = PomodoroService(serviceFactory: () async => connection);
+    await service.connect();
+    connection.emitEvent({'type': 'ready'});
+    connection.emitEvent({
+      'type': 'state',
+      'status': 'running',
+      'phase': 'pomodoro',
+      'elapsedSeconds': 10,
+      'durationSeconds': 1500,
+      'completedPomodoros': 0,
+    });
+    await Future<void>.delayed(Duration.zero);
+
+    final advance = service.advanceToNextPhase();
+    await Future<void>.delayed(Duration.zero);
+    connection.emitEvent({'type': 'error', 'message': 'advance refused'});
+    await expectLater(advance, throwsStateError);
+    expect(service.errorMessage, contains('advance refused'));
+    service.dispose();
+    await connection.close();
+  });
+
+  test('reports when saved timer options cannot be restored', () async {
+    final connection = FakeTimerServiceConnection()
+      ..closeOnQuit = false
+      ..settingsError = StateError('update failed');
+    const previous = TimerOptions(durationPomodoro: 25);
+    const requested = TimerOptions(durationPomodoro: 30);
+    var saves = 0;
+    final service = PomodoroService(
+      serviceFactory: () async => connection,
+      settingsLoader: () async => previous,
+      settingsSaver: (options) async {
+        saves++;
+        if (saves == 2) throw StateError('restore failed');
+      },
+    );
+    await service.connect();
+    connection.emitEvent({'type': 'ready'});
+    await Future<void>.delayed(Duration.zero);
+
+    await expectLater(service.updateSettings(requested), throwsStateError);
+    expect(saves, 2);
+    expect(service.errorMessage, contains('restore failed'));
+    service.dispose();
+    await connection.close();
+  });
+
+  test(
+    'failed phase advance reports the send error and discards queued skips',
+    () async {
+      final connection = FakeTimerServiceConnection()..closeOnQuit = false;
+      final service = PomodoroService(serviceFactory: () async => connection);
+      await service.connect();
+      connection.emitEvent({'type': 'ready'});
+      connection.emitEvent({
+        'type': 'state',
+        'status': 'running',
+        'phase': 'pomodoro',
+        'elapsedSeconds': 10,
+        'durationSeconds': 1500,
+        'completedPomodoros': 0,
+      });
+      await Future<void>.delayed(Duration.zero);
+      connection.sendError = StateError('send failed');
+      final first = service.advanceToNextPhase();
+      final second = service.advanceToNextPhase();
+      await expectLater(first, throwsStateError);
+      expect(await second, isFalse);
+      expect(connection.commands, ['nextPhase']);
+      expect(service.errorMessage, contains('send failed'));
+      connection.sendError = null;
+      service.dispose();
+      await connection.close();
+    },
+  );
+
   test('reports malformed events and asynchronous stream errors', () async {
     final connection = FakeTimerServiceConnection();
     final service = PomodoroService(serviceFactory: () async => connection);

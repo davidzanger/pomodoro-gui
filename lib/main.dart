@@ -69,25 +69,45 @@ class _PomodoroAppState extends State<PomodoroApp> {
   }
 
   Future<void> _saveSettings(AppSettings settings) async {
-    await _settingsStore.save(settings);
-    if (mounted) {
-      setState(() {
-        _settings = settings;
-        _settingsError = null;
-      });
-    }
-    await _controller.updateSettings(settings.timerOptions);
+    await _persistSettings(settings, reset: false);
   }
 
   Future<void> _resetSettings(AppSettings settings) async {
-    await _settingsStore.reset(settings);
+    await _persistSettings(settings, reset: true);
+  }
+
+  Future<void> _persistSettings(
+    AppSettings settings, {
+    required bool reset,
+  }) async {
+    final previous = _settings;
+    if (reset) {
+      await _settingsStore.reset(settings);
+    } else {
+      await _settingsStore.save(settings);
+    }
+    try {
+      await _controller.updateSettings(settings.timerOptions);
+    } on Object catch (error, stackTrace) {
+      try {
+        await _settingsStore.save(previous);
+      } on Object catch (rollbackError) {
+        Error.throwWithStackTrace(
+          StateError(
+            'Could not apply settings: $error. '
+            'Previous app settings could not be restored: $rollbackError',
+          ),
+          stackTrace,
+        );
+      }
+      Error.throwWithStackTrace(error, stackTrace);
+    }
     if (mounted) {
       setState(() {
         _settings = settings;
         _settingsError = null;
       });
     }
-    await _controller.updateSettings(settings.timerOptions);
   }
 
   @override
@@ -617,23 +637,30 @@ class _NextSession extends StatelessWidget {
         snapshot.phase == TimerPhase.pomodoro || snapshot.phase == null
         ? snapshot.completedPomodoros + 1
         : snapshot.completedPomodoros;
-    final labels = <String>[
-      'Pomodoro $pomodoroNumber',
-      'Additional Pomodoro',
-      switch (snapshot.phase) {
-        TimerPhase.shortBreak => 'Short break',
-        TimerPhase.longBreak => 'Long break',
-        _ => 'Break',
-      },
-      'Pomodoro ${pomodoroNumber + 1}',
-    ];
-    final current = snapshot.phase == null
-        ? 0
-        : snapshot.phase == TimerPhase.additionalPomodoro
+    final onBreak =
+        snapshot.phase == TimerPhase.shortBreak ||
+        snapshot.phase == TimerPhase.longBreak;
+    final showAdditional =
+        snapshot.phase == TimerPhase.additionalPomodoro ||
+        snapshot.nextStep == NextStep.additionalPomodoro ||
+        snapshot.nextStep == null && !onBreak;
+    final showBreak =
+        onBreak ||
+        snapshot.nextStep == NextStep.shortBreak ||
+        snapshot.nextStep == NextStep.longBreak ||
+        snapshot.nextStep == NextStep.breakDecision ||
+        snapshot.nextStep == null;
+    final labels = onBreak
+        ? <String>[snapshot.phase!.label, 'Pomodoro ${pomodoroNumber + 1}']
+        : <String>[
+            'Pomodoro $pomodoroNumber',
+            if (showAdditional) 'Additional Pomodoro',
+            if (showBreak) 'Break',
+            'Pomodoro ${pomodoroNumber + 1}',
+          ];
+    final current =
+        snapshot.phase == TimerPhase.additionalPomodoro && showAdditional
         ? 1
-        : snapshot.phase == TimerPhase.shortBreak ||
-              snapshot.phase == TimerPhase.longBreak
-        ? 2
         : 0;
     return Container(
       padding: const EdgeInsets.fromLTRB(0, 18, 0, 0),
@@ -660,7 +687,7 @@ class _NextSession extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'UP NEXT',
+                    'WHEN TIMER ENDS',
                     style: TextStyle(
                       color: colors.secondary,
                       fontSize: 10,
@@ -760,103 +787,19 @@ class _Controls extends StatefulWidget {
 }
 
 class _ControlsState extends State<_Controls> {
-  static const _phaseChangeTimeout = Duration(seconds: 5);
-
-  int _queuedNextSessionSkips = 0;
-  bool _processingNextSessionSkips = false;
-  Completer<void>? _phaseChangeCompleter;
-
-  @override
-  void didUpdateWidget(covariant _Controls oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (_phaseChangeCompleter != null &&
-        _hasPhaseAdvanced(oldWidget.snapshot, widget.snapshot)) {
-      _phaseChangeCompleter!.complete();
-    }
-  }
-
-  bool _hasPhaseAdvanced(TimerSnapshot previous, TimerSnapshot next) {
-    return previous.phase != next.phase ||
-        previous.status != next.status ||
-        previous.durationSeconds != next.durationSeconds ||
-        previous.completedPomodoros != next.completedPomodoros ||
-        next.elapsedSeconds < previous.elapsedSeconds;
-  }
-
-  bool _isActive(TimerSnapshot snapshot) =>
-      snapshot.phase != null &&
-      (snapshot.status == TimerStatus.running ||
-          snapshot.status == TimerStatus.paused);
-
-  void _queueSkipToNextSession() {
-    if (!_isActive(widget.snapshot)) return;
-    setState(() => _queuedNextSessionSkips++);
-    unawaited(_processQueuedNextSessionSkips());
-  }
-
-  Future<void> _processQueuedNextSessionSkips() async {
-    if (_processingNextSessionSkips) return;
-    _processingNextSessionSkips = true;
-
+  Future<void> _advanceToNextPhase() async {
     try {
-      while (mounted && _queuedNextSessionSkips > 0) {
-        final snapshot = widget.snapshot;
-        if (!_isActive(snapshot)) {
-          final discarded = _queuedNextSessionSkips;
-          _queuedNextSessionSkips = 0;
-          appTalker.warning(
-            'Ignored $discarded queued skip-to-next click(s): '
-            'the timer is no longer running.',
-          );
-          break;
-        }
-
-        _queuedNextSessionSkips--;
-        final phaseChange = Completer<void>();
-        _phaseChangeCompleter = phaseChange;
-        try {
-          appTalker.info(
-            'Advancing from ${snapshot.phase!.name} to the next session.',
-          );
-          await widget.controller.sendCommand('nextPhase');
-          await phaseChange.future.timeout(_phaseChangeTimeout);
-        } on TimeoutException catch (error, stackTrace) {
-          _queuedNextSessionSkips = 0;
-          appTalker.handle(
-            error,
-            stackTrace,
-            'The timer did not report a phase change after a skip.',
-          );
-          _showSkipError();
-          break;
-        } on Object catch (error, stackTrace) {
-          _queuedNextSessionSkips = 0;
-          appTalker.handle(
-            error,
-            stackTrace,
-            'Could not skip the timer phase.',
-          );
-          _showSkipError();
-          break;
-        } finally {
-          if (identical(_phaseChangeCompleter, phaseChange)) {
-            _phaseChangeCompleter = null;
-          }
-        }
+      await widget.controller.advanceToNextPhase();
+    } on Object catch (error, stackTrace) {
+      appTalker.handle(error, stackTrace, 'Could not skip the timer phase.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('The timer did not advance after skipping.'),
+          ),
+        );
       }
-    } finally {
-      _processingNextSessionSkips = false;
-      if (mounted) setState(() {});
     }
-  }
-
-  void _showSkipError() {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('The timer did not advance after skipping.'),
-      ),
-    );
   }
 
   @override
@@ -914,7 +857,7 @@ class _ControlsState extends State<_Controls> {
         ),
         IconButton.outlined(
           tooltip: 'Skip to next session',
-          onPressed: canControl ? _queueSkipToNextSession : null,
+          onPressed: canControl ? _advanceToNextPhase : null,
           icon: const Icon(Icons.skip_next),
           style: controlStyle,
         ),

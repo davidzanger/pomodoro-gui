@@ -27,15 +27,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _maxMinutes = 2147483647;
 
   late AppSettings _settings;
+  late AppSettings _confirmedSettings;
   late final Map<String, TextEditingController> _controllers;
   Future<void> _saveQueue = Future<void>.value();
   String? _saveError;
   bool _dismissLoadError = false;
+  int _saveRevision = 0;
 
   @override
   void initState() {
     super.initState();
     _settings = widget.settings;
+    _confirmedSettings = widget.settings;
     final options = _settings.timerOptions;
     _controllers = {
       'pomodoro': TextEditingController(
@@ -106,15 +109,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _queueSave(AppSettings settings) {
+    final revision = ++_saveRevision;
     _saveQueue = _saveQueue.then((_) async {
       try {
         await widget.onSettingsChanged(settings);
-        if (mounted) setState(() => _saveError = null);
+        _confirmedSettings = settings;
+        if (mounted && revision == _saveRevision) {
+          setState(() => _saveError = null);
+        }
       } on Object catch (error, stackTrace) {
         appTalker.handle(error, stackTrace, 'Could not save app settings.');
-        if (mounted) setState(() => _saveError = error.toString());
+        if (mounted && revision == _saveRevision) {
+          setState(() {
+            _settings = _confirmedSettings;
+            _syncControllers(_confirmedSettings.timerOptions);
+            _saveError = error.toString();
+          });
+        }
       }
     });
+  }
+
+  void _syncControllers(TimerOptions options) {
+    _controllers['pomodoro']!.text = options.durationPomodoro.toString();
+    _controllers['additional']!.text = options.additionalDuration.toString();
+    _controllers['shortBreak']!.text = options.durationShortBreak.toString();
+    _controllers['longBreak']!.text = options.durationLongBreak.toString();
+    _controllers['interval']!.text = options.intervalLongBreak.toString();
+    _controllers['reminderInterval']!.text = options.intervalReminderAfterBreak
+        .toString();
+    _controllers['pomodoroSound']!.text = options.endEventPomodoro.soundPath;
+    _controllers['additionalSound']!.text =
+        options.endEventAdditionalPomodoro.soundPath;
+    _controllers['reminderSound']!.text =
+        options.eventReminderAfterBreak.soundPath;
   }
 
   Future<void> _reset() async {
@@ -147,21 +175,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _settings = defaults;
       _saveError = null;
       _dismissLoadError = true;
-      _controllers['pomodoro']!.text = '25';
-      _controllers['additional']!.text = '5';
-      _controllers['shortBreak']!.text = '5';
-      _controllers['longBreak']!.text = '15';
-      _controllers['interval']!.text = '4';
-      _controllers['reminderInterval']!.text = '5';
-      _controllers['pomodoroSound']!.clear();
-      _controllers['additionalSound']!.clear();
-      _controllers['reminderSound']!.clear();
+      _syncControllers(defaults.timerOptions);
     });
     try {
       await widget.onReset(defaults);
+      _confirmedSettings = defaults;
     } on Object catch (error, stackTrace) {
       appTalker.handle(error, stackTrace, 'Could not reset app settings.');
-      if (mounted) setState(() => _saveError = error.toString());
+      if (mounted) {
+        setState(() {
+          _settings = _confirmedSettings;
+          _syncControllers(_confirmedSettings.timerOptions);
+          _saveError = error.toString();
+        });
+      }
     }
   }
 
@@ -289,7 +316,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final options = _settings.timerOptions;
     final colors = Theme.of(context).colorScheme;
-    final error = _saveError ?? (_dismissLoadError ? null : widget.loadError);
+    final error = _saveError == null
+        ? (_dismissLoadError ? null : widget.loadError)
+        : 'Could not apply changes. Check saved and active timer settings. $_saveError';
 
     return Scaffold(
       appBar: AppBar(
@@ -557,13 +586,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ),
-              if (_saveError != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Could not save changes. Check the values and timer connection.',
-                  style: TextStyle(color: colors.error),
-                ),
-              ],
             ],
           ),
         ),

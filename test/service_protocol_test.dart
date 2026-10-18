@@ -103,7 +103,7 @@ void main() {
   test('decodes timer state events from the Rust service', () {
     final event = ServiceEvent.decode(
       '{"protocolVersion":1,"event":{"type":"state",'
-      '"status":"running","phase":"pomodoro",'
+      '"status":"running","phase":"pomodoro","nextStep":"shortBreak",'
       '"elapsedSeconds":12,"durationSeconds":1500,'
       '"completedPomodoros":2}}',
     );
@@ -114,6 +114,7 @@ void main() {
     expect(event.state?.elapsedSeconds, 12);
     expect(event.state?.durationSeconds, 1500);
     expect(event.state?.completedPomodoros, 2);
+    expect(event.state?.nextSessionLabel, 'Short break');
   });
 
   test('rejects an unsupported protocol version', () {

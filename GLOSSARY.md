@@ -14,4 +14,4 @@ A short work phase after a Pomodoro. It can repeat while the user postpones the 
 The short or long rest phase due after a Pomodoro and its Additional Pomodoros.
 
 **Break decision**:
-The explicit choice to continue working for another Additional Pomodoro or begin the due break.
+The choice after an Additional Pomodoro to continue working or begin the due break. Dismissing the choice counts as continuing with another Additional Pomodoro.

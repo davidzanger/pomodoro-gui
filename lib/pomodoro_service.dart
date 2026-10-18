@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 
@@ -17,6 +18,9 @@ abstract class TimerController extends ChangeNotifier {
   Future<TimerOptions> loadSettings();
   Future<void> connect();
   Future<void> sendCommand(String type, {int? seconds});
+
+  /// Returns false when the request is discarded because the timer is inactive.
+  Future<bool> advanceToNextPhase();
   Future<void> updateSettings(TimerOptions options);
 }
 
@@ -61,6 +65,10 @@ class PomodoroService extends TimerController {
   bool _disposed = false;
   bool _connecting = false;
   TimerOptions? _pendingSettings;
+  final Queue<Completer<bool>> _phaseAdvanceRequests = Queue<Completer<bool>>();
+  bool _advancingPhase = false;
+  Completer<void>? _phaseAdvanceState;
+  bool _phaseCompleted = false;
 
   @override
   TimerSnapshot get snapshot => _snapshot;
@@ -135,8 +143,62 @@ class PomodoroService extends TimerController {
   }
 
   @override
+  Future<bool> advanceToNextPhase() {
+    final request = Completer<bool>();
+    request.future.ignore();
+    _phaseAdvanceRequests.add(request);
+    if (!_advancingPhase) unawaited(_processPhaseAdvances());
+    return request.future;
+  }
+
+  Future<void> _processPhaseAdvances() async {
+    _advancingPhase = true;
+    try {
+      while (_phaseAdvanceRequests.isNotEmpty && !_disposed) {
+        final request = _phaseAdvanceRequests.removeFirst();
+        final active =
+            _isConnected &&
+            _snapshot.phase != null &&
+            (_snapshot.status == TimerStatus.running ||
+                _snapshot.status == TimerStatus.paused);
+        if (!active) {
+          request.complete(false);
+          continue;
+        }
+        final phaseState = Completer<void>();
+        phaseState.future.ignore();
+        _phaseAdvanceState = phaseState;
+        _phaseCompleted = false;
+        try {
+          await _service!.sendCommand('nextPhase');
+          await phaseState.future.timeout(const Duration(seconds: 5));
+          request.complete(true);
+        } on Object catch (error, stackTrace) {
+          _setError('The timer did not advance after skipping: $error');
+          request.completeError(error, stackTrace);
+          while (_phaseAdvanceRequests.isNotEmpty) {
+            _phaseAdvanceRequests.removeFirst().complete(false);
+          }
+        } finally {
+          if (identical(_phaseAdvanceState, phaseState)) {
+            _phaseAdvanceState = null;
+          }
+        }
+      }
+    } finally {
+      _advancingPhase = false;
+    }
+  }
+
+  @override
   Future<void> updateSettings(TimerOptions options) async {
     options.validate();
+    TimerOptions? previousOptions;
+    try {
+      previousOptions = await _settingsLoader();
+    } on Object {
+      // A reset can replace an unreadable options file.
+    }
     await _settingsSaver(options);
     final service = _service;
     if (service == null || !_isConnected) {
@@ -148,7 +210,25 @@ class PomodoroService extends TimerController {
       await service.updateSettings(options);
       appTalker.info('Updated Rust timer settings.');
     } on Object catch (error, stackTrace) {
-      final message = 'Could not update Rust timer settings: $error';
+      Object? rollbackError;
+      if (previousOptions != null) {
+        try {
+          await _settingsSaver(previousOptions);
+        } on Object catch (failure, rollbackStackTrace) {
+          rollbackError = failure;
+          appTalker.handle(
+            failure,
+            rollbackStackTrace,
+            'Could not restore previous timer settings.',
+          );
+        }
+      } else {
+        rollbackError = StateError('Previous timer settings were unavailable.');
+      }
+      final message = rollbackError == null
+          ? 'Could not update Rust timer settings: $error'
+          : 'Could not update Rust timer settings: $error. '
+                'Previous saved settings could not be restored: $rollbackError';
       _setError(message);
       Error.throwWithStackTrace(StateError(message), stackTrace);
     }
@@ -182,8 +262,20 @@ class PomodoroService extends TimerController {
             );
           }
           notifyListeners();
+          final pending = _phaseAdvanceState;
+          if (_phaseCompleted && pending != null && !pending.isCompleted) {
+            _phaseCompleted = false;
+            pending.complete();
+          }
         case 'error':
           _setError(event.message ?? 'The Rust timer returned an error.');
+          if (_phaseAdvanceState case final pending?) {
+            if (!pending.isCompleted) {
+              pending.completeError(
+                StateError(event.message ?? 'Timer command failed.'),
+              );
+            }
+          }
         case 'stopped':
           _isConnected = false;
           appTalker.warning('Rust timer stopped.');
@@ -192,6 +284,7 @@ class PomodoroService extends TimerController {
           appTalker.info('Waiting for the next timer phase to be started.');
         case 'phaseCompleted':
           appTalker.info('Timer phase ${event.phase!.name} completed.');
+          if (_phaseAdvanceState != null) _phaseCompleted = true;
           break;
       }
     } on FormatException catch (error) {
@@ -241,12 +334,20 @@ class PomodoroService extends TimerController {
         stackTrace,
         'Could not apply saved timer settings.',
       );
+      _pendingSettings = options;
+      _setError('Saved timer settings could not be applied: $error');
     }
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _phaseAdvanceState?.completeError(
+      StateError('Timer controller was disposed.'),
+    );
+    while (_phaseAdvanceRequests.isNotEmpty) {
+      _phaseAdvanceRequests.removeFirst().complete(false);
+    }
     final service = _service;
     if (service != null) {
       unawaited(_stopService(service));
@@ -264,65 +365,12 @@ Future<TimerServiceConnection> _createTimerService() async {
 
 Future<TimerOptions> _loadRustTimerSettings() async {
   await rustBridgeInitializer.ensureInitialized();
-  final timerSettings = TimerOptions.decode(await rust_api.loadTimerSettings());
-  final file = _rustOptionsFile();
-  if (!await file.exists()) return timerSettings;
-  final saved = jsonDecode(await file.readAsString());
-  if (saved is! Map<String, dynamic>) {
-    throw const FormatException('Rust timer settings must be a JSON object.');
-  }
-  final options = timerSettings.copyWith(
-    endEventPomodoro: saved.containsKey('endEventPomodoro')
-        ? TimerEndEvent.decode(saved['endEventPomodoro'], 'endEventPomodoro')
-        : null,
-    endEventAdditionalPomodoro: saved.containsKey('endEventAdditionalPomodoro')
-        ? TimerEndEvent.decode(
-            saved['endEventAdditionalPomodoro'],
-            'endEventAdditionalPomodoro',
-          )
-        : null,
-    intervalReminderAfterBreak: saved['intervalReminderAfterBreak'] as int?,
-    eventReminderAfterBreak: saved.containsKey('eventReminderAfterBreak')
-        ? TimerEndEvent.decode(
-            saved['eventReminderAfterBreak'],
-            'eventReminderAfterBreak',
-          )
-        : null,
-  );
-  options.validate();
-  return options;
+  return TimerOptions.decode(await rust_api.loadTimerSettings());
 }
 
 Future<void> _saveRustTimerSettings(TimerOptions options) async {
   await rustBridgeInitializer.ensureInitialized();
-  await _validateSoundPaths(options);
   await rust_api.saveTimerSettings(settingsJson: jsonEncode(options.toJson()));
-  final file = _rustOptionsFile();
-  final saved = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-  saved.addAll(options.toJson());
-  await file.writeAsString(
-    const JsonEncoder.withIndent('  ').convert(saved),
-    flush: true,
-  );
-}
-
-File _rustOptionsFile() => File(
-  '${File(Platform.resolvedExecutable).parent.path}'
-  '${Platform.pathSeparator}pomodoro_options.json',
-);
-
-Future<void> _validateSoundPaths(TimerOptions options) async {
-  for (final event in [
-    options.endEventPomodoro,
-    options.endEventAdditionalPomodoro,
-    options.eventReminderAfterBreak,
-  ]) {
-    if (event.kind == TimerEventKind.sound &&
-        event.soundPath.isNotEmpty &&
-        !await File(event.soundPath).exists()) {
-      throw FormatException('Sound file does not exist: ${event.soundPath}');
-    }
-  }
 }
 
 @visibleForTesting

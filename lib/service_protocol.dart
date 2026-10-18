@@ -6,6 +6,24 @@ enum TimerStatus { idle, running, paused, waiting, awaitingBreakDecision }
 
 enum TimerPhase { pomodoro, additionalPomodoro, shortBreak, longBreak }
 
+enum NextStep {
+  pomodoro,
+  additionalPomodoro,
+  shortBreak,
+  longBreak,
+  breakDecision,
+}
+
+extension NextStepLabel on NextStep {
+  String get label => switch (this) {
+    NextStep.pomodoro => 'Pomodoro',
+    NextStep.additionalPomodoro => 'Additional Pomodoro',
+    NextStep.shortBreak => 'Short break',
+    NextStep.longBreak => 'Long break',
+    NextStep.breakDecision => 'Your choice',
+  };
+}
+
 extension TimerStatusLabel on TimerStatus {
   String get label => switch (this) {
     TimerStatus.idle => 'Ready',
@@ -32,6 +50,7 @@ class TimerSnapshot {
     required this.elapsedSeconds,
     required this.durationSeconds,
     required this.completedPomodoros,
+    this.nextStep,
   });
 
   final TimerStatus status;
@@ -39,15 +58,18 @@ class TimerSnapshot {
   final int elapsedSeconds;
   final int durationSeconds;
   final int completedPomodoros;
+  final NextStep? nextStep;
 
-  String get nextSessionLabel => status == TimerStatus.awaitingBreakDecision
-      ? 'Your choice'
-      : switch (phase) {
-          null => 'Pomodoro',
-          TimerPhase.pomodoro => 'Additional Pomodoro',
-          TimerPhase.additionalPomodoro => 'Break',
-          TimerPhase.shortBreak || TimerPhase.longBreak => 'Pomodoro',
-        };
+  String get nextSessionLabel =>
+      nextStep?.label ??
+      (status == TimerStatus.awaitingBreakDecision
+          ? 'Your choice'
+          : switch (phase) {
+              null => 'Pomodoro',
+              TimerPhase.pomodoro => 'Additional Pomodoro',
+              TimerPhase.additionalPomodoro => 'Break',
+              TimerPhase.shortBreak || TimerPhase.longBreak => 'Pomodoro',
+            });
 
   Duration get remaining => Duration(
     seconds: (durationSeconds - elapsedSeconds).clamp(0, durationSeconds),
@@ -66,6 +88,9 @@ class TimerSnapshot {
       elapsedSeconds: (json['elapsedSeconds'] as num).toInt(),
       durationSeconds: (json['durationSeconds'] as num).toInt(),
       completedPomodoros: (json['completedPomodoros'] as num).toInt(),
+      nextStep: json['nextStep'] == null
+          ? null
+          : NextStep.values.byName(json['nextStep'] as String),
     );
   }
 }
