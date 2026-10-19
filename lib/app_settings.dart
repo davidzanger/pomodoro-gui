@@ -211,17 +211,21 @@ class AppSettings {
   const AppSettings({
     this.timerOptions = const TimerOptions(),
     this.theme = AppThemePreference.system,
+    this.autoStartOnLaunch = true,
   });
 
   final TimerOptions timerOptions;
   final AppThemePreference theme;
+  final bool autoStartOnLaunch;
 
   AppSettings copyWith({
     TimerOptions? timerOptions,
     AppThemePreference? theme,
+    bool? autoStartOnLaunch,
   }) => AppSettings(
     timerOptions: timerOptions ?? this.timerOptions,
     theme: theme ?? this.theme,
+    autoStartOnLaunch: autoStartOnLaunch ?? this.autoStartOnLaunch,
   );
 }
 
@@ -252,6 +256,7 @@ class MemoryAppSettingsStore implements AppSettingsStore {
 
 class SharedPreferencesAppSettingsStore implements AppSettingsStore {
   static const _themeKey = 'appThemeMode';
+  static const _autoStartOnLaunchKey = 'autoStartOnLaunch';
 
   @override
   Future<AppSettings> load() async {
@@ -263,7 +268,10 @@ class SharedPreferencesAppSettingsStore implements AppSettingsStore {
       'dark' => AppThemePreference.dark,
       _ => throw FormatException('Unsupported saved app theme: $value'),
     };
-    return AppSettings(theme: theme);
+    return AppSettings(
+      theme: theme,
+      autoStartOnLaunch: preferences.getBool(_autoStartOnLaunchKey) ?? true,
+    );
   }
 
   @override
@@ -271,6 +279,13 @@ class SharedPreferencesAppSettingsStore implements AppSettingsStore {
     final preferences = await SharedPreferences.getInstance();
     final saved = await preferences.setString(_themeKey, settings.theme.name);
     if (!saved) throw StateError('Could not save the app theme preference.');
+    final savedAutoStart = await preferences.setBool(
+      _autoStartOnLaunchKey,
+      settings.autoStartOnLaunch,
+    );
+    if (!savedAutoStart) {
+      throw StateError('Could not save the app startup preference.');
+    }
   }
 
   @override
@@ -279,6 +294,10 @@ class SharedPreferencesAppSettingsStore implements AppSettingsStore {
     final removed = await preferences.remove(_themeKey);
     if (!removed && preferences.containsKey(_themeKey)) {
       throw StateError('Could not reset the app theme preference.');
+    }
+    final removedAutoStart = await preferences.remove(_autoStartOnLaunchKey);
+    if (!removedAutoStart && preferences.containsKey(_autoStartOnLaunchKey)) {
+      throw StateError('Could not reset the app startup preference.');
     }
   }
 }

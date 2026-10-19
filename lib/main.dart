@@ -42,11 +42,14 @@ class _PomodoroAppState extends State<PomodoroApp> {
   late final AppSettingsStore _settingsStore;
   AppSettings _settings = const AppSettings();
   String? _settingsError;
+  bool _startupSettingsLoaded = false;
+  bool _startupHandled = false;
 
   @override
   void initState() {
     super.initState();
     _controller = widget.controller ?? PomodoroService();
+    _controller.addListener(_startOnLaunchWhenReady);
     _settingsStore =
         widget.settingsStore ?? SharedPreferencesAppSettingsStore();
     unawaited(_loadSettingsAndConnect());
@@ -55,17 +58,49 @@ class _PomodoroAppState extends State<PomodoroApp> {
   Future<void> _loadSettingsAndConnect() async {
     try {
       final appSettings = await _settingsStore.load();
-      final timerOptions = await _controller.loadSettings();
-      final settings = AppSettings(
-        timerOptions: timerOptions,
-        theme: appSettings.theme,
-      );
-      if (mounted) setState(() => _settings = settings);
+      if (mounted) {
+        setState(() {
+          _settings = _settings.copyWith(
+            theme: appSettings.theme,
+            autoStartOnLaunch: appSettings.autoStartOnLaunch,
+          );
+        });
+      }
     } on Object catch (error, stackTrace) {
       appTalker.handle(error, stackTrace, 'Could not load app settings.');
       if (mounted) setState(() => _settingsError = error.toString());
     }
+    try {
+      final timerOptions = await _controller.loadSettings();
+      if (mounted) {
+        setState(
+          () => _settings = _settings.copyWith(timerOptions: timerOptions),
+        );
+      }
+    } on Object catch (error, stackTrace) {
+      appTalker.handle(error, stackTrace, 'Could not load timer settings.');
+      if (mounted) setState(() => _settingsError = error.toString());
+    }
+    _startupSettingsLoaded = true;
     await _controller.connect();
+    _startOnLaunchWhenReady();
+  }
+
+  void _startOnLaunchWhenReady() {
+    if (!_startupSettingsLoaded ||
+        _startupHandled ||
+        !_controller.isConnected) {
+      return;
+    }
+    final snapshot = _controller.snapshot;
+    if (snapshot.status != TimerStatus.idle || snapshot.phase != null) {
+      _startupHandled = true;
+      return;
+    }
+    _startupHandled = true;
+    if (_settings.autoStartOnLaunch) {
+      unawaited(_controller.sendCommand('start'));
+    }
   }
 
   Future<void> _saveSettings(AppSettings settings) async {
@@ -112,6 +147,7 @@ class _PomodoroAppState extends State<PomodoroApp> {
 
   @override
   void dispose() {
+    _controller.removeListener(_startOnLaunchWhenReady);
     _controller.dispose();
     super.dispose();
   }
@@ -361,10 +397,12 @@ class _PomodoroHomeState extends State<PomodoroHome> {
                             ? _CompactLayout(
                                 snapshot: snapshot,
                                 controller: controller,
+                                options: settings.timerOptions,
                               )
                             : _WideLayout(
                                 snapshot: snapshot,
                                 controller: controller,
+                                options: settings.timerOptions,
                               ),
                       ),
                       const _Footer(),
@@ -395,17 +433,11 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
+        Image.asset(
+          'assets/pomodoro_logo.png',
           width: 42,
           height: 42,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
-            borderRadius: BorderRadius.circular(13),
-          ),
-          child: Icon(
-            Icons.timelapse_rounded,
-            color: Theme.of(context).colorScheme.onPrimary,
-          ),
+          semanticLabel: 'Pomodoro logo',
         ),
         const SizedBox(width: 12),
         Text(
@@ -454,10 +486,15 @@ class _TopBar extends StatelessWidget {
 }
 
 class _WideLayout extends StatelessWidget {
-  const _WideLayout({required this.snapshot, required this.controller});
+  const _WideLayout({
+    required this.snapshot,
+    required this.controller,
+    required this.options,
+  });
 
   final TimerSnapshot snapshot;
   final TimerController controller;
+  final TimerOptions options;
 
   @override
   Widget build(BuildContext context) {
@@ -472,7 +509,11 @@ class _WideLayout extends StatelessWidget {
             ),
             const SizedBox(width: 48),
             Expanded(
-              child: _SessionPanel(snapshot: snapshot, controller: controller),
+              child: _SessionPanel(
+                snapshot: snapshot,
+                controller: controller,
+                options: options,
+              ),
             ),
           ],
         ),
@@ -482,10 +523,15 @@ class _WideLayout extends StatelessWidget {
 }
 
 class _CompactLayout extends StatelessWidget {
-  const _CompactLayout({required this.snapshot, required this.controller});
+  const _CompactLayout({
+    required this.snapshot,
+    required this.controller,
+    required this.options,
+  });
 
   final TimerSnapshot snapshot;
   final TimerController controller;
+  final TimerOptions options;
 
   @override
   Widget build(BuildContext context) {
@@ -496,7 +542,11 @@ class _CompactLayout extends StatelessWidget {
           const SizedBox(height: 16),
           _TimerDial(snapshot: snapshot, diameter: 190),
           const SizedBox(height: 14),
-          _SessionPanel(snapshot: snapshot, controller: controller),
+          _SessionPanel(
+            snapshot: snapshot,
+            controller: controller,
+            options: options,
+          ),
         ],
       ),
     );
@@ -580,10 +630,15 @@ class _TimerDial extends StatelessWidget {
 }
 
 class _SessionPanel extends StatelessWidget {
-  const _SessionPanel({required this.snapshot, required this.controller});
+  const _SessionPanel({
+    required this.snapshot,
+    required this.controller,
+    required this.options,
+  });
 
   final TimerSnapshot snapshot;
   final TimerController controller;
+  final TimerOptions options;
 
   @override
   Widget build(BuildContext context) {
@@ -614,10 +669,10 @@ class _SessionPanel extends StatelessWidget {
         const SizedBox(height: 28),
         _Controls(snapshot: snapshot, controller: controller),
         const SizedBox(height: 24),
-        _NextSession(snapshot: snapshot),
+        _NextSession(snapshot: snapshot, options: options),
         const SizedBox(height: 20),
         Text(
-          'Pomodoro ${snapshot.completedPomodoros + 1}',
+          'Pomodoro ${snapshot.completedPomodoros + (snapshot.phase == TimerPhase.additionalPomodoro ? 0 : 1)}',
           style: TextStyle(
             color: colors.onSurfaceVariant,
             fontSize: 13,
@@ -630,9 +685,10 @@ class _SessionPanel extends StatelessWidget {
 }
 
 class _NextSession extends StatelessWidget {
-  const _NextSession({required this.snapshot});
+  const _NextSession({required this.snapshot, required this.options});
 
   final TimerSnapshot snapshot;
+  final TimerOptions options;
 
   @override
   Widget build(BuildContext context) {
@@ -644,27 +700,44 @@ class _NextSession extends StatelessWidget {
     final onBreak =
         snapshot.phase == TimerPhase.shortBreak ||
         snapshot.phase == TimerPhase.longBreak;
+    final longBreakDue =
+        options.intervalLongBreak > 0 &&
+        pomodoroNumber % options.intervalLongBreak == 0;
+    final breakLabel = longBreakDue ? 'Long break' : 'Short break';
+    final breakDuration = longBreakDue
+        ? options.durationLongBreak
+        : options.durationShortBreak;
     final showAdditional =
         snapshot.phase == TimerPhase.additionalPomodoro ||
-        snapshot.nextStep == NextStep.additionalPomodoro ||
-        snapshot.nextStep == null && !onBreak;
-    final showBreak =
-        onBreak ||
-        snapshot.nextStep == NextStep.shortBreak ||
-        snapshot.nextStep == NextStep.longBreak ||
-        snapshot.nextStep == null;
+        (options.additionalDuration > 0 &&
+            (!options.repeatAdditionalPomodoro || breakDuration > 0));
+    final nextLabel =
+        snapshot.nextStep?.label ??
+        switch (snapshot.phase) {
+          null => 'Pomodoro',
+          TimerPhase.pomodoro =>
+            showAdditional
+                ? 'Additional Pomodoro'
+                : breakDuration > 0
+                ? breakLabel
+                : 'Pomodoro',
+          TimerPhase.additionalPomodoro =>
+            options.repeatAdditionalEnabled && breakDuration > 0
+                ? 'Additional Pomodoro'
+                : breakDuration > 0
+                ? breakLabel
+                : 'Pomodoro',
+          TimerPhase.shortBreak || TimerPhase.longBreak => 'Pomodoro',
+        };
     final labels = onBreak
         ? <String>[snapshot.phase!.label, 'Pomodoro ${pomodoroNumber + 1}']
         : <String>[
             'Pomodoro $pomodoroNumber',
             if (showAdditional) 'Additional Pomodoro',
-            if (showBreak) 'Break',
+            if (breakDuration > 0) breakLabel,
             'Pomodoro ${pomodoroNumber + 1}',
           ];
-    final current =
-        snapshot.phase == TimerPhase.additionalPomodoro && showAdditional
-        ? 1
-        : 0;
+    final current = snapshot.phase == TimerPhase.additionalPomodoro ? 1 : 0;
     return Container(
       padding: const EdgeInsets.fromLTRB(0, 18, 0, 0),
       decoration: BoxDecoration(
@@ -699,7 +772,7 @@ class _NextSession extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(snapshot.nextSessionLabel),
+                  Text(nextLabel),
                 ],
               ),
             ],

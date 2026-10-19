@@ -30,8 +30,6 @@ void main() {
 
     try {
       await waitFor(() => controller.isConnected);
-      expect(find.byTooltip('Start session'), findsOneWidget);
-      await tester.tap(find.byTooltip('Start session'));
       await waitFor(() => controller.snapshot.status == TimerStatus.running);
       expect(find.byTooltip('Pause timer'), findsOneWidget);
       final firstPhaseId = controller.snapshot.phaseId;

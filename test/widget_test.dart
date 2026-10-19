@@ -38,7 +38,7 @@ class FakeTimerController extends TimerController {
   TimerSnapshot _snapshot;
   final Duration skipResponseDelay;
   final bool waitAfterAdditionalPomodoro;
-  final bool connected;
+  bool connected;
   final String? initialErrorMessage;
   final bool skipDoesNotAdvance;
   final Object? skipError;
@@ -46,11 +46,15 @@ class FakeTimerController extends TimerController {
   final List<int?> commandSeconds = [];
   final List<TimerOptions> settingsUpdates = [];
   Object? settingsError;
+  Object? loadSettingsError;
   TimerOptions loadedTimerOptions = const TimerOptions();
   Future<void> _phaseQueue = Future<void>.value();
 
   @override
-  Future<TimerOptions> loadSettings() async => loadedTimerOptions;
+  Future<TimerOptions> loadSettings() async {
+    if (loadSettingsError case final error?) throw error;
+    return loadedTimerOptions;
+  }
 
   @override
   TimerSnapshot get snapshot => _snapshot;
@@ -177,6 +181,11 @@ class FakeTimerController extends TimerController {
 
   void update(TimerSnapshot snapshot) {
     _snapshot = snapshot;
+    notifyListeners();
+  }
+
+  void setConnected(bool value) {
+    connected = value;
     notifyListeners();
   }
 }
@@ -347,18 +356,72 @@ void main() {
     expect(find.text('Take a break'), findsOneWidget);
   });
 
-  testWidgets('starts a Pomodoro through the timer controller', (tester) async {
+  testWidgets('starts the first Pomodoro automatically by default', (
+    tester,
+  ) async {
     final controller = FakeTimerController();
     await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
+    await tester.pumpAndSettle();
 
     expect(find.text('POMODORO'), findsOneWidget);
-    expect(find.text('--:--'), findsOneWidget);
-    await tester.tap(find.byTooltip('Start session'));
-    await tester.pump();
-
     expect(controller.commands, ['start']);
     expect(find.text('25:00'), findsOneWidget);
     expect(find.byTooltip('Pause timer'), findsOneWidget);
+  });
+
+  testWidgets('can start manually when startup option is off', (tester) async {
+    final controller = FakeTimerController();
+    await _pumpPomodoroApp(
+      tester,
+      controller,
+      MemoryAppSettingsStore(const AppSettings(autoStartOnLaunch: false)),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.commands, isEmpty);
+    expect(find.text('--:--'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Start session'));
+    await tester.pump();
+    expect(controller.commands, ['start']);
+  });
+
+  testWidgets('saved startup preference survives a Rust settings load error', (
+    tester,
+  ) async {
+    final controller = FakeTimerController()
+      ..loadSettingsError = StateError('unavailable');
+    await _pumpPomodoroApp(
+      tester,
+      controller,
+      MemoryAppSettingsStore(const AppSettings(autoStartOnLaunch: false)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(controller.commands, isEmpty);
+    expect(find.textContaining('Could not load settings:'), findsOneWidget);
+  });
+
+  testWidgets('starts once when the timer becomes ready', (tester) async {
+    final controller = FakeTimerController(connected: false);
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
+    await tester.pumpAndSettle();
+    expect(controller.commands, isEmpty);
+
+    controller.setConnected(true);
+    await tester.pumpAndSettle();
+    expect(controller.commands, ['start']);
+
+    controller.update(
+      const TimerSnapshot(
+        status: TimerStatus.idle,
+        phase: null,
+        elapsedSeconds: 0,
+        durationSeconds: 0,
+        completedPomodoros: 0,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.commands, ['start']);
   });
 
   testWidgets('skips to the next phase and displays the upcoming session', (
@@ -382,8 +445,9 @@ void main() {
 
     expect(controller.commands, ['nextPhase']);
     expect(controller.commandSeconds, [null]);
-    expect(find.text('Additional Pomodoro'), findsNWidgets(2));
-    expect(find.text('Break'), findsNWidgets(2));
+    expect(find.text('Additional Pomodoro'), findsNWidgets(3));
+    expect(find.text('Break'), findsNothing);
+    expect(find.text('Short break'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Skip to next session'));
     await tester.pump();
@@ -425,7 +489,7 @@ void main() {
     expect(controller.snapshot.status, TimerStatus.waiting);
   });
 
-  testWidgets('rhythm follows the next step reported by Rust', (tester) async {
+  testWidgets('rhythm shows the full upcoming cycle', (tester) async {
     final controller = FakeTimerController(
       initialSnapshot: const TimerSnapshot(
         status: TimerStatus.running,
@@ -437,8 +501,8 @@ void main() {
       ),
     );
     await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
-    expect(find.text('Additional Pomodoro'), findsNothing);
-    expect(find.text('Short break'), findsOneWidget);
+    expect(find.text('Additional Pomodoro'), findsOneWidget);
+    expect(find.text('Short break'), findsNWidgets(2));
 
     controller.update(
       const TimerSnapshot(
@@ -452,6 +516,52 @@ void main() {
     );
     await tester.pump();
     expect(find.text('Additional Pomodoro'), findsWidgets);
+    expect(find.text('Pomodoro 1'), findsNWidgets(2));
+  });
+
+  testWidgets('rhythm uses the due long break and skips disabled phases', (
+    tester,
+  ) async {
+    final controller =
+        FakeTimerController(
+            initialSnapshot: const TimerSnapshot(
+              status: TimerStatus.running,
+              phase: TimerPhase.pomodoro,
+              elapsedSeconds: 10,
+              durationSeconds: 1500,
+              completedPomodoros: 3,
+            ),
+          )
+          ..loadedTimerOptions = const TimerOptions(
+            additionalDuration: 0,
+            intervalLongBreak: 4,
+          );
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pomodoro 4'), findsNWidgets(2));
+    expect(find.text('Additional Pomodoro'), findsNothing);
+    expect(find.text('Long break'), findsNWidgets(2));
+  });
+
+  testWidgets('rhythm skips Additional when the due break is disabled', (
+    tester,
+  ) async {
+    final controller = FakeTimerController(
+      initialSnapshot: const TimerSnapshot(
+        status: TimerStatus.running,
+        phase: TimerPhase.pomodoro,
+        elapsedSeconds: 10,
+        durationSeconds: 1500,
+        completedPomodoros: 0,
+      ),
+    )..loadedTimerOptions = const TimerOptions(durationShortBreak: 0);
+    await _pumpPomodoroApp(tester, controller, MemoryAppSettingsStore());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Additional Pomodoro'), findsNothing);
+    expect(find.text('Short break'), findsNothing);
+    expect(find.text('Pomodoro 2'), findsOneWidget);
   });
 
   testWidgets('opens the in-app Talker log screen from the top bar', (
@@ -483,6 +593,30 @@ void main() {
 
     expect((await settingsStore.load()).timerOptions.durationPomodoro, 30);
     expect(controller.settingsUpdates.last.durationPomodoro, 30);
+  });
+
+  testWidgets('startup switch is saved for the next app launch', (
+    tester,
+  ) async {
+    final settingsStore = MemoryAppSettingsStore();
+    await _pumpPomodoroApp(tester, FakeTimerController(), settingsStore);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+
+    final startupSwitch = find.widgetWithText(
+      SwitchListTile,
+      'Start timer when app opens',
+    );
+    expect(tester.widget<SwitchListTile>(startupSwitch).value, isTrue);
+    await tester.tap(startupSwitch);
+    await tester.pumpAndSettle();
+    expect((await settingsStore.load()).autoStartOnLaunch, isFalse);
+
+    final nextController = FakeTimerController();
+    await _pumpPomodoroApp(tester, nextController, settingsStore);
+    await tester.pumpAndSettle();
+    expect(nextController.commands, isEmpty);
   });
 
   testWidgets('restores confirmed settings when the timer rejects a change', (
@@ -594,13 +728,17 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('additional')), '5');
     await tester.pumpAndSettle();
     await tester.ensureVisible(repeat);
+    await tester.pumpAndSettle();
     await tester.tap(repeat);
     await tester.pumpAndSettle();
     expect(controller.settingsUpdates.last.repeatAdditionalPomodoro, isFalse);
     expect(tester.widget<SwitchListTile>(decision).onChanged, isNull);
+    await tester.ensureVisible(repeat);
+    await tester.pumpAndSettle();
     await tester.tap(repeat);
     await tester.pumpAndSettle();
     await tester.ensureVisible(decision);
+    await tester.pumpAndSettle();
     await tester.tap(decision);
     await tester.pumpAndSettle();
     expect(controller.settingsUpdates.last.askBeforeBreak, isFalse);
@@ -618,7 +756,7 @@ void main() {
     await _pumpPomodoroApp(
       tester,
       FakeTimerController(),
-      MemoryAppSettingsStore(),
+      MemoryAppSettingsStore(const AppSettings(autoStartOnLaunch: false)),
     );
     await tester.pumpAndSettle();
     expect(find.text('YOUR RHYTHM'), findsOneWidget);

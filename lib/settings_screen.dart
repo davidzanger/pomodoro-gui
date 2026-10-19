@@ -108,6 +108,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _queueSave(settings);
   }
 
+  void _updateAutoStartOnLaunch(bool enabled) {
+    final settings = _settings.copyWith(autoStartOnLaunch: enabled);
+    setState(() => _settings = settings);
+    _queueSave(settings);
+  }
+
   void _queueSave(AppSettings settings) {
     final revision = ++_saveRevision;
     _saveQueue = _saveQueue.then((_) async {
@@ -374,6 +380,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.all(24),
                   child: Column(
                     children: [
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: _settingLabel(
+                          'Start timer when app opens',
+                          'Start the first Pomodoro automatically each time you open the app.',
+                        ),
+                        value: _settings.autoStartOnLaunch,
+                        onChanged: _updateAutoStartOnLaunch,
+                      ),
+                      const SizedBox(height: 12),
                       _numberField(
                         keyName: 'pomodoro',
                         label: 'Pomodoro duration',

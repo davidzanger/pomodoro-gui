@@ -23,9 +23,11 @@ void main() {
       final preferences = await SharedPreferences.getInstance();
       final loaded = await store.load();
 
-      expect(preferences.getKeys(), {'appThemeMode'});
+      expect(preferences.getKeys(), {'appThemeMode', 'autoStartOnLaunch'});
       expect(preferences.getString('appThemeMode'), 'dark');
+      expect(preferences.getBool('autoStartOnLaunch'), isTrue);
       expect(loaded.theme, AppThemePreference.dark);
+      expect(loaded.autoStartOnLaunch, isTrue);
       expect(loaded.timerOptions.durationPomodoro, 25);
     },
   );
@@ -38,7 +40,17 @@ void main() {
 
     final preferences = await SharedPreferences.getInstance();
     expect(preferences.containsKey('appThemeMode'), isFalse);
+    expect(preferences.containsKey('autoStartOnLaunch'), isFalse);
     expect((await store.load()).theme, AppThemePreference.system);
+    expect((await store.load()).autoStartOnLaunch, isTrue);
+  });
+
+  test('startup preference defaults on and persists off', () async {
+    final store = SharedPreferencesAppSettingsStore();
+    expect((await store.load()).autoStartOnLaunch, isTrue);
+
+    await store.save(const AppSettings(autoStartOnLaunch: false));
+    expect((await store.load()).autoStartOnLaunch, isFalse);
   });
 
   test('timer options encode and decode the Rust bridge shape', () {
