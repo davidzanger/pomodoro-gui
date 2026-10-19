@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 
 import 'app_settings.dart';
@@ -275,9 +276,23 @@ class PomodoroHome extends StatefulWidget {
 }
 
 class _PomodoroHomeState extends State<PomodoroHome> {
+  static const _windowAttention = MethodChannel(
+    'pomodoro_gui/window_attention',
+  );
   bool _showingBreakDecision = false;
   int _lastDismissedDecisionId = 0;
   DialogRoute<bool>? _decisionRoute;
+
+  Future<void> _setBreakDecisionVisible(bool visible) async {
+    try {
+      await _windowAttention.invokeMethod<void>(
+        'setBreakDecisionVisible',
+        visible,
+      );
+    } on MissingPluginException {
+      // Other platforms and widget tests have no Windows runner channel.
+    }
+  }
 
   Future<void> _showBreakDecision() async {
     if (!mounted || !widget.controller.snapshot.breakDecisionPending) {
@@ -304,10 +319,14 @@ class _PomodoroHomeState extends State<PomodoroHome> {
       ),
     );
     _decisionRoute = route;
-    final takeBreak = await Navigator.of(
-      context,
-      rootNavigator: true,
-    ).push(route);
+    final decision = Navigator.of(context, rootNavigator: true).push(route);
+    bool? takeBreak;
+    unawaited(_setBreakDecisionVisible(true));
+    try {
+      takeBreak = await decision;
+    } finally {
+      unawaited(_setBreakDecisionVisible(false));
+    }
     _decisionRoute = null;
     if (!mounted) return;
     _showingBreakDecision = false;
