@@ -44,7 +44,6 @@ migrate_working_dir/
 /build/
 /coverage/
 /dist/
-/tools/single-file-launcher/target/
 .widget_preview/
 
 # Symbolication related

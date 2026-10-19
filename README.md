@@ -63,12 +63,12 @@ Rust suite also tests the original `--service` process protocol to preserve CLI
 compatibility. The Windows integration test drives the desktop controls through
 the real Rust timer; run it separately on a Windows desktop with build tools.
 
-## Single-file Windows package
+## Windows ZIP package
 
-The regular Flutter release still consists of several runtime files, including `flutter_windows.dll`, the `data` directory, and the Rust native library. To create one file for distribution, run [`tools/package-windows.ps1`](./tools/package-windows.ps1):
+The Flutter release consists of several runtime files, including `flutter_windows.dll`, the `data` directory, and the Rust native library. To package them together, run [`tools/package-windows.ps1`](./tools/package-windows.ps1):
 
 ```powershell
 .\tools\package-windows.ps1
 ```
 
-If the generated `windows\` runner is missing, the script creates it before building. This builds the Windows release and produces `dist\Pomodoro.exe`. On first launch, that self-extracting executable places the complete app under `%LOCALAPPDATA%\PomodoroGui` and starts it from there. The extraction directory and Rust options file persist between launches. The package is one file to distribute, but it extracts multiple files to run; it does not merge the Flutter runtime into one native PE executable.
+If the generated `windows\` runner is missing, the script creates it before building. It produces `dist\Pomodoro.zip` with a `Pomodoro\` folder containing the executable, DLLs, and assets. Extract the ZIP to a folder of your choice and start `Pomodoro\pomodoro_gui.exe` from there. Keep the extracted files together. The Rust options file is stored beside the executable. Existing settings from the former self-extracting package are not migrated automatically.

@@ -4,11 +4,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$rustProject = (Resolve-Path (Join-Path $projectRoot '..\..\pomodoro')).Path
-$launcherManifest = Join-Path $PSScriptRoot 'single-file-launcher\Cargo.toml'
+$rustProject = (Resolve-Path (Join-Path $projectRoot '..\pomodoro')).Path
 $releaseDirectory = Join-Path $projectRoot 'build\windows\x64\runner\Release'
-$payloadArchive = Join-Path $projectRoot 'build\pomodoro-payload.zip'
 $outputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
+$stagingDirectory = Join-Path $projectRoot (Join-Path 'build' ([System.IO.Path]::GetRandomFileName()))
 
 if (-not (Test-Path (Join-Path $rustProject 'Cargo.toml'))) {
     throw "Rust project manifest was not found at $rustProject."
@@ -28,32 +27,32 @@ try {
         throw "Flutter Windows release build failed with exit code $LASTEXITCODE."
     }
 
-    if (-not (Test-Path (Join-Path $releaseDirectory 'pomodoro_gui_native.dll'))) {
-        throw 'The FRB native library is missing from the Flutter release output.'
+    if (-not (Test-Path (Join-Path $releaseDirectory 'pomodoro_gui.exe')) -or
+        -not (Test-Path (Join-Path $releaseDirectory 'flutter_windows.dll')) -or
+        -not (Test-Path (Join-Path $releaseDirectory 'pomodoro_gui_native.dll')) -or
+        -not (Test-Path (Join-Path $releaseDirectory 'data') -PathType Container)) {
+        throw 'The Flutter release output is missing required runtime files.'
     }
-
-    if (Test-Path $payloadArchive) {
-        Remove-Item -LiteralPath $payloadArchive -Force
-    }
-    Compress-Archive -Path (Join-Path $releaseDirectory '*') `
-        -DestinationPath $payloadArchive -CompressionLevel Optimal
 
     New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
-    $env:POMODORO_PAYLOAD_ZIP = $payloadArchive
-    cargo build --release --manifest-path $launcherManifest
-    if ($LASTEXITCODE -ne 0) {
-        throw "Self-extractor build failed with exit code $LASTEXITCODE."
-    }
+    $packageDirectory = Join-Path $stagingDirectory 'Pomodoro'
+    New-Item -ItemType Directory -Path $packageDirectory -Force | Out-Null
+    Copy-Item -Path (Join-Path $releaseDirectory '*') -Destination $packageDirectory -Recurse -Force
 
-    $launcher = Join-Path (Split-Path $launcherManifest -Parent) 'target\release\pomodoro_gui_launcher.exe'
-    $distributionFile = Join-Path $outputDirectory 'Pomodoro.exe'
-    Copy-Item -LiteralPath $launcher -Destination $distributionFile -Force
-    Write-Output "Created single-file package: $distributionFile"
+    $distributionFile = Join-Path $outputDirectory 'Pomodoro.zip'
+    Compress-Archive -LiteralPath $packageDirectory -DestinationPath $distributionFile `
+        -CompressionLevel Optimal -Force
+    Write-Output "Created Windows package: $distributionFile"
 }
 finally {
-    Remove-Item Env:\POMODORO_PAYLOAD_ZIP -ErrorAction SilentlyContinue
-    if (Test-Path $payloadArchive) {
-        Remove-Item -LiteralPath $payloadArchive -Force
+    $buildDirectory = [System.IO.Path]::GetFullPath((Join-Path $projectRoot 'build'))
+    $stagingPath = [System.IO.Path]::GetFullPath($stagingDirectory)
+    if (-not $stagingPath.StartsWith($buildDirectory + [System.IO.Path]::DirectorySeparatorChar,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Staging directory is outside the build directory: $stagingPath"
+    }
+    if (Test-Path -LiteralPath $stagingPath) {
+        Remove-Item -LiteralPath $stagingPath -Recurse -Force
     }
     Pop-Location
 }
