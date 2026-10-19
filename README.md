@@ -30,7 +30,7 @@ The generated FRB API is in `lib/src/rust/`; edit the bridge API in `rust/src/ap
 
 The Flutter app needs neither a `POMODORO_RUST_EXECUTABLE` environment variable nor a separate `locking-pomodoro-timer.exe`. Rust's existing `--service` CLI entry point remains available for compatibility and testing.
 
-The top-bar **Settings** button opens every timer option in `pomodoro_options.json`: durations, break cycles, Additional Pomodoro repetition and break decisions, automatic starts, end actions, sound paths, and break reminders. Each control has an info button that also shows its explanation on hover. Changes save immediately; durations take effect on the next phase and actions on upcoming phase completions. Repetition and the break decision are enabled by default when the Additional Pomodoro duration is positive. After each naturally completed Additional Pomodoro, the selected sound or screen lock runs, then the next Additional Pomodoro starts automatically. The break decision can stay open while further Additional Pomodoros run. **Keep working** or dismissing the decision leaves the current timer running; **Take a break** and **Skip to next session** start the due break immediately without running the current phase's end action. A reminder repeats while the next Pomodoro is waiting for manual start. The app theme and the separate **Start timer when app opens** preference are stored by Flutter using `shared_preferences` and are never written to the Rust options file. The startup preference defaults to on; it starts the first Pomodoro once the Rust timer is ready. The top bar and Windows executable use the logo from the sibling Rust repository's `assets/pomodoro.ico`.
+The top-bar **Settings** button opens every timer option in `pomodoro_options.json`: durations, break cycles, Additional Pomodoro repetition and break decisions, automatic starts, end actions, sound paths, and break reminders. Each control has an info button that also shows its explanation on hover. Changes save immediately; durations take effect on the next phase and actions on upcoming phase completions. Repetition and the break decision are enabled by default when the Additional Pomodoro duration is positive. After each naturally completed Additional Pomodoro, the selected sound or screen lock runs, then the next Additional Pomodoro starts automatically. The break decision can stay open while further Additional Pomodoros run. **Keep working** or dismissing the decision leaves the current timer running; **Take a break** and **Skip to next session** start the due break immediately without running the current phase's end action. A reminder repeats while the next Pomodoro is waiting for manual start. The app theme and the separate **Start timer when app opens** preference are stored by Flutter using `shared_preferences` and are never written to the Rust options file. The startup preference defaults to on; it starts the first Pomodoro once the Rust timer is ready. The top bar and Windows executable use a transparent version of the logo from the sibling Rust repository's `assets/pomodoro.ico`.
 
 ## In-app logs
 
@@ -65,10 +65,16 @@ the real Rust timer; run it separately on a Windows desktop with build tools.
 
 ## Windows ZIP package
 
-The Flutter release consists of several runtime files, including `flutter_windows.dll`, the `data` directory, and the Rust native library. To package them together, run [`tools/package-windows.ps1`](./tools/package-windows.ps1):
+The Flutter release consists of several runtime files, including `flutter_windows.dll`, the `data` directory, and the Rust native library. A normal Windows release build now creates `dist/Pomodoro.zip` automatically after installing those files:
+
+```powershell
+flutter build windows --release
+```
+
+The convenience script [`tools/package-windows.ps1`](./tools/package-windows.ps1) also runs the release build and produces the same ZIP:
 
 ```powershell
 .\tools\package-windows.ps1
 ```
 
-If the generated `windows\` runner is missing, the script creates it before building. It produces `dist\Pomodoro.zip` with a `Pomodoro\` folder containing the executable, DLLs, and assets. Extract the ZIP to a folder of your choice and start `Pomodoro\pomodoro_gui.exe` from there. Keep the extracted files together. The Rust options file is stored beside the executable. Existing settings from the former self-extracting package are not migrated automatically.
+If the generated `windows\` runner is missing, the script creates it before building. The ZIP contains a `Pomodoro\` folder with the executable, DLLs, and assets. Extract the ZIP to a folder of your choice and start `Pomodoro\pomodoro_gui.exe` from there. Keep the extracted files together. The Rust options file is stored beside the executable. Existing settings from the former self-extracting package are not migrated automatically.

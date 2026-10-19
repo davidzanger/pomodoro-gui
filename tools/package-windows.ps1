@@ -1,5 +1,6 @@
 param(
-    [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\dist')
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\dist'),
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,9 +23,11 @@ try {
         }
     }
 
-    flutter build windows --release
-    if ($LASTEXITCODE -ne 0) {
-        throw "Flutter Windows release build failed with exit code $LASTEXITCODE."
+    if (-not $SkipBuild) {
+        flutter build windows --release
+        if ($LASTEXITCODE -ne 0) {
+            throw "Flutter Windows release build failed with exit code $LASTEXITCODE."
+        }
     }
 
     if (-not (Test-Path (Join-Path $releaseDirectory 'pomodoro_gui.exe')) -or
