@@ -1,80 +1,128 @@
 # Pomodoro GUI
 
-Windows desktop app for the [Locking Pomodoro Timer](https://github.com/davidzanger/Locking-Pomodoro-Timer). The Rust timer is compiled as a native library and called in-process through [Flutter Rust Bridge](https://cjycode.com/flutter_rust_bridge/); the app no longer starts a separate Rust service executable.
+A Windows desktop Pomodoro timer with configurable work and break phases, sound alerts, and screen-lock actions. Keep working through repeating Additional Pomodoros, then start your break when you're ready.
 
-## Development prerequisites
+Built with Flutter and the Rust [Locking Pomodoro Timer](https://github.com/davidzanger/Locking-Pomodoro-Timer). The timer is bundled with the app and runs in the same process.
 
-- Flutter with Windows desktop and Native Assets support (the checked setup uses Flutter 3.47 and Dart 3.13).
-- Rust toolchain 1.93.1, installed automatically by the Rust toolchain file.
-- Visual Studio C++ desktop tools and a Windows SDK.
-- The Rust repository checked out at `..\pomodoro` relative to this repository.
-- `flutter_rust_bridge_codegen` 2.13.0 for regenerating the bindings.
+## Install on Windows
 
-Most generated Windows runner files are intentionally not versioned. The project-level `windows/CMakeLists.txt` is versioned because it installs the Rust Native Asset beside the executable. On a fresh clone, create the remaining runner files once with the Flutter SDK installed:
+1. Download `Pomodoro.zip` from the [latest release](https://github.com/davidzanger/pomodoro-gui/releases/latest).
+2. Extract it to a writable folder. Keep the executable, DLLs, and `data` folder together.
+3. Open `Pomodoro/pomodoro_gui.exe`.
+
+The first Pomodoro starts automatically once the timer is ready. Turn off **Settings → Start timer when app opens** if you prefer to start manually. Settings from the former self-extracting package are not migrated automatically.
+
+## Use the timer
+
+The dashboard shows the current phase, remaining time, and cycle progress.
+
+| Control | What it does |
+| --- | --- |
+| Play / pause | Start, pause, or resume the timer. |
+| **Skip ahead one minute** | Shorten the current phase by one minute. |
+| **Skip to next session** | Start the next phase immediately without running the current phase's end action. |
+| **Settings** | Change durations, automatic starts, end actions, reminders, and appearance. |
+| **View logs** | Open the in-app log history for troubleshooting. |
+
+An **Additional Pomodoro** is a short work phase after a regular Pomodoro. With a positive duration, repetition and the **Take a break?** decision are enabled by default. Each naturally completed Additional Pomodoro runs its configured sound or screen lock and starts another. Repetitions do not count as new Pomodoros toward the next long break.
+
+Choose **Keep working**, or dismiss the decision, to leave the timer running. Choose **Take a break** to start the due break immediately. You can disable repetition or the decision in Settings, or set the Additional Pomodoro duration to `0` to skip that phase.
+
+### Settings and saved data
+
+Settings save immediately. Durations apply to the next phase; end actions apply to upcoming completions.
+
+- Configure Pomodoro, Additional Pomodoro, short-break, and long-break durations, plus the number of Pomodoros between long breaks.
+- Choose automatic phase starts, built-in or custom sounds, screen-lock actions, and a repeating reminder while the next Pomodoro waits for manual start after a break.
+- Choose a system, light, or dark theme. Each setting's info button explains its behavior and also supports hover.
+
+Timer options are stored in `pomodoro_options.json` beside the executable. The theme and **Start timer when app opens** preference are stored separately through Flutter's `shared_preferences`.
+
+The log viewer includes Flutter errors, timer commands and state changes, and errors reported by the Rust bridge. Internal Rust logs are not included.
+
+## Run from source
+
+### Prerequisites
+
+- Windows with [Flutter's Windows desktop build tools](https://docs.flutter.dev/platform-integration/windows/setup), including Visual Studio's **Desktop development with C++** workload and a Windows SDK.
+- Flutter with Native Assets support. The current [dependency lockfile](./pubspec.lock) requires Flutter **3.44.0 or newer** and Dart **3.12.0 or newer, below 4.0.0**. The broader Dart constraint in [pubspec.yaml](./pubspec.yaml) is `>=3.9.2 <4.0.0`.
+- [Rust installed through rustup](https://rustup.rs/). The bridge pins Rust **1.93.1** in [rust/rust-toolchain.toml](./rust/rust-toolchain.toml).
+- The Rust timer repository checked out beside this project, as required by [rust/Cargo.toml](./rust/Cargo.toml).
+
+Clone both repositories into the same parent folder:
+
+```powershell
+git clone https://github.com/davidzanger/Locking-Pomodoro-Timer.git pomodoro
+git clone https://github.com/davidzanger/pomodoro-gui.git
+cd pomodoro-gui
+```
+
+Generate the remaining Windows runner files on a fresh clone, install dependencies, and launch the app:
 
 ```powershell
 flutter create --platforms=windows --no-pub .
-```
-
-From this repository root:
-
-```powershell
 flutter pub get
-flutter_rust_bridge_codegen generate
 flutter run -d windows
 ```
 
-## Windows Rust integration
+The build hook compiles the Rust library automatically. The app currently supports Windows only.
 
-The generated FRB API is in `lib/src/rust/`; edit the bridge API in `rust/src/api/`. `flutter_rust_bridge.yaml` points code generation at that API, and `hook/build.dart` builds the bridge crate as a Windows Native Asset during the Flutter build. The timer logic remains in the sibling `pomodoro` repository, which is a path dependency of the bridge crate. The Rust timer keeps its `pomodoro_options.json` beside the Flutter executable.
+### Rust bridge development
 
-The Flutter app needs neither a `POMODORO_RUST_EXECUTABLE` environment variable nor a separate `locking-pomodoro-timer.exe`. Rust's existing `--service` CLI entry point remains available for compatibility and testing.
+Edit the bridge API in [rust/src/api/](./rust/src/api/). The underlying timer logic lives in the sibling `pomodoro` repository. [hook/build.dart](./hook/build.dart) builds the bridge as a Native Asset, and [windows/CMakeLists.txt](./windows/CMakeLists.txt) installs it beside the executable.
 
-The top-bar **Settings** button opens every timer option in `pomodoro_options.json`: durations, break cycles, Additional Pomodoro repetition and break decisions, automatic starts, end actions, sound paths, and break reminders. Each control has an info button that also shows its explanation on hover. Changes save immediately; durations take effect on the next phase and actions on upcoming phase completions. Repetition and the break decision are enabled by default when the Additional Pomodoro duration is positive. After each naturally completed Additional Pomodoro, the selected sound or screen lock runs, then the next Additional Pomodoro starts automatically. The break decision can stay open while further Additional Pomodoros run. **Keep working** or dismissing the decision leaves the current timer running; **Take a break** and **Skip to next session** start the due break immediately without running the current phase's end action. A reminder repeats while the next Pomodoro is waiting for manual start. The app theme and the separate **Start timer when app opens** preference are stored by Flutter using `shared_preferences` and are never written to the Rust options file. The startup preference defaults to on; it starts the first Pomodoro once the Rust timer is ready. The top bar and Windows executable use a transparent version of the logo from the sibling Rust repository's `assets/pomodoro.ico`.
+Bindings in [lib/src/rust/](./lib/src/rust/) are checked in. After changing the bridge API, regenerate them with the matching Flutter Rust Bridge code generator:
 
-## In-app logs
+```powershell
+cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked
+flutter_rust_bridge_codegen generate
+```
 
-The top-bar **View logs** button opens Talker's in-app log history. The app uses
-[`talker_flutter`](https://pub.dev/packages/talker_flutter) because it provides
-both the logger and a ready-made Flutter log screen; the separate
-[`logger`](https://pub.dev/packages/logger) package is a lightweight console
-logger without that built-in viewer. The history includes Flutter framework
-and uncaught async errors, Flutter-side timer commands and state changes, and
-errors reported by the Rust bridge. Internal Rust logs are not forwarded to
-the Flutter process.
+Code generation is configured in [flutter_rust_bridge.yaml](./flutter_rust_bridge.yaml). Flutter needs no separate Rust service executable or `POMODORO_RUST_EXECUTABLE` environment variable. The Rust timer's `--service` CLI remains available for compatibility and testing.
 
 ## Tests
 
+Run these commands from this repository's root after completing source setup:
+
 ```powershell
 flutter analyze
-flutter test
 flutter test --coverage
 .\tools\check-flutter-coverage.ps1
 cargo test --manifest-path rust\Cargo.toml
-cargo test --manifest-path ..\..\pomodoro\Cargo.toml
-flutter test integration_test\timer_flow_test.dart -d windows
+cargo test --manifest-path ..\pomodoro\Cargo.toml
 ```
 
-Flutter's built-in coverage option writes `coverage/lcov.info`. The coverage
-check reports line coverage for hand-written Dart under `lib/`, excluding the
-generated Rust bridge files in `lib/src/rust/`, and fails unless coverage is
-above 95%. The Flutter tests include an in-process FFI event-stream test. The
-Rust suite also tests the original `--service` process protocol to preserve CLI
-compatibility. The Windows integration test drives the desktop controls through
-the real Rust timer; run it separately on a Windows desktop with build tools.
+Flutter writes coverage to `coverage/lcov.info`. The [coverage check](./tools/check-flutter-coverage.ps1) requires line coverage **above 95%** for hand-written Dart under [lib/](./lib/), excluding generated bridge files. Use `flutter test` for a run without coverage. The Flutter suite includes an in-process bridge event-stream test; the Rust timer suite also checks the original service process protocol.
 
-## Windows ZIP package
+Run the desktop integration tests separately on Windows with build tools installed:
 
-The Flutter release consists of several runtime files, including `flutter_windows.dll`, the `data` directory, and the Rust native library. A normal Windows release build now creates `dist/Pomodoro.zip` automatically after installing those files:
+```powershell
+flutter test integration_test\timer_flow_test.dart -d windows
+flutter test integration_test\break_attention_test.dart -d windows
+```
+
+These tests exercise the real Rust timer through the desktop app.
+
+## Build a Windows ZIP
+
+After completing source setup, run:
 
 ```powershell
 flutter build windows --release
 ```
 
-The convenience script [`tools/package-windows.ps1`](./tools/package-windows.ps1) also runs the release build and produces the same ZIP:
+The release build automatically creates `dist/Pomodoro.zip`, containing a `Pomodoro/` folder with the executable, DLLs, and assets. Extract and launch it as described in [Install on Windows](#install-on-windows).
+
+The [packaging script](./tools/package-windows.ps1) also builds and packages the app:
 
 ```powershell
 .\tools\package-windows.ps1
 ```
 
-If the generated `windows\` runner is missing, the script creates it before building. The ZIP contains a `Pomodoro\` folder with the executable, DLLs, and assets. Extract the ZIP to a folder of your choice and start `Pomodoro\pomodoro_gui.exe` from there. Keep the extracted files together. The Rust options file is stored beside the executable. Existing settings from the former self-extracting package are not migrated automatically.
+## Project information
+
+See the [changelog](./CHANGELOG.md) for release notes and the [glossary](./GLOSSARY.md) for timer terminology. Report bugs and propose changes through [GitHub Issues](https://github.com/davidzanger/pomodoro-gui/issues); include reproduction steps and relevant entries from **View logs**.
+
+## License
+
+Pomodoro GUI is licensed under the [GNU General Public License v3.0](./LICENSE), the same license as the [Rust timer](https://github.com/davidzanger/Locking-Pomodoro-Timer). The license text is copied unchanged from the Rust project.
